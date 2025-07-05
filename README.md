@@ -32,7 +32,7 @@
 
 ## MMB Installation
 
-Install mteb in local editable mode with mieb components.
+Install mteb in local editable mode with **MIEB** components. We primarily focus on MIEB retrieval tasks.
 ```python
 pip install -e .[image]
 ```
