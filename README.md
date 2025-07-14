@@ -37,6 +37,11 @@ Install mteb in local editable mode with **MIEB** components. We primarily focus
 pip install -e .[image]
 ```
 
+Run this to support `TIGER-Lab/VLM2Vec-LoRA`:
+```python
+pip install -e .[peft]
+```
+
 Dry run model `TIGER-Lab/VLM2Vec-LoRA` on visual document retrieval task `VidoreShiftProjectRetrieval`.
 ```python
 python try.py
