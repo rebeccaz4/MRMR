@@ -40,13 +40,13 @@ pip install -e .[image]
 Run this to support `TIGER-Lab/VLM2Vec-LoRA`:
 ```python
 pip install -e .[peft]
+pip install flash-attn --no-build-isolation # install ninja if stuck in install flash-attn
 ```
 
 Dry run model `TIGER-Lab/VLM2Vec-LoRA` on visual document retrieval task `VidoreShiftProjectRetrieval`.
 ```python
 python try.py
 ```
-
 
 ## Example Usage
 
