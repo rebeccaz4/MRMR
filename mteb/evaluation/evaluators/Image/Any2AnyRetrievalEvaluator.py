@@ -173,14 +173,119 @@ class Any2AnyDenseRetrievalExactSearch:
                 )
             else:
                 raise ValueError(f"Unsupported modality: {q_modality}")
-
+            
         logger.info("Preparing Corpus...")
+        
         corpus_ids = list(corpus["id"])
-
-        corpus_modality = corpus[0]["modality"]
 
         logger.info("Encoding Corpus in batches... Warning: This might take a while!")
 
+        result_heaps = {qid: [] for qid in query_ids}
+
+        for chunk_start in range(0, len(corpus), self.corpus_chunk_size):
+            chunk = corpus.select(
+                range(
+                    chunk_start, min(chunk_start + self.corpus_chunk_size, len(corpus))
+                )
+            )
+            chunk_ids = corpus_ids[chunk_start : chunk_start + self.corpus_chunk_size]
+
+            sub_corpus_embeddings = []
+            valid_chunk_ids = []
+            
+            # check the modality one by one
+            for i, item in enumerate(chunk):
+                modality = item.get("modality")
+                try:
+                    if modality == "text":
+                        embedding = self.model.get_text_embeddings(
+                            texts=[item["text"]],
+                            task_name=task_name,
+                            prompt_type=PromptType.passage,
+                            **self.encode_kwargs,
+                        )
+                    elif modality == "image":
+                        dataset = ImageDataset(
+                            [item], image_column_name="image", transform=self.transform
+                        )
+                        dataloader = DataLoader(
+                            dataset,
+                            batch_size=1,
+                            shuffle=False,
+                            collate_fn=custom_collate_fn,
+                            num_workers=0,
+                        )
+                        embedding = self.model.get_image_embeddings(
+                            images=dataloader,
+                            task_name=task_name,
+                            prompt_type=PromptType.passage,
+                            **self.encode_kwargs,
+                        )
+                    elif modality == "image,text":
+                        dataset = ImageDataset(
+                            [item], image_column_name="image", transform=self.transform
+                        )
+                        dataloader = DataLoader(
+                            dataset,
+                            batch_size=1,
+                            shuffle=False,
+                            collate_fn=custom_collate_fn,
+                            num_workers=0,
+                        )
+                        embedding = self.model.get_fused_embeddings(
+                            texts=[item["text"]],
+                            images=dataloader,
+                            task_name=task_name,
+                            prompt_type=PromptType.passage,
+                            **self.encode_kwargs,
+                        )
+                    else:
+                        logger.warning(f"Unsupported modality: {modality}, skipping.")
+                        continue
+
+                    sub_corpus_embeddings.append(embedding)
+                    valid_chunk_ids.append(chunk_ids[i])
+                except Exception as e:
+                    logger.warning(f"Failed to encode item at index {chunk_start + i}: {e}")
+                    continue
+
+            if not sub_corpus_embeddings:
+                continue
+
+            sub_corpus_embeddings = torch.cat(sub_corpus_embeddings, dim=0)
+
+            cos_scores = score_function(query_embeddings, sub_corpus_embeddings)
+            cos_scores[torch.isnan(cos_scores)] = -1
+
+            cos_scores_top_k_values, cos_scores_top_k_idx = torch.topk(
+                cos_scores,
+                min(top_k, cos_scores.size(1)),
+                dim=1,
+                largest=True,
+                sorted=return_sorted,
+            )
+            cos_scores_top_k_values = cos_scores_top_k_values.cpu().tolist()
+            cos_scores_top_k_idx = cos_scores_top_k_idx.cpu().tolist()
+
+            for query_itr in range(len(query_embeddings)):
+                query_id = query_ids[query_itr]
+                for sub_corpus_id, score in zip(
+                    cos_scores_top_k_idx[query_itr], cos_scores_top_k_values[query_itr]
+                ):
+                    corpus_id = valid_chunk_ids[sub_corpus_id]
+                    if len(result_heaps[query_id]) < top_k:
+                        heapq.heappush(result_heaps[query_id], (score, corpus_id))
+                    else:
+                        heapq.heappushpop(result_heaps[query_id], (score, corpus_id))
+                        
+        for qid in result_heaps:
+            for score, corpus_id in result_heaps[qid]:
+                self.results[qid][corpus_id] = score
+
+        return self.results
+                        
+                        
+        """
         result_heaps = {qid: [] for qid in query_ids}
         for chunk_start in range(0, len(corpus), self.corpus_chunk_size):
             chunk = corpus.select(
@@ -257,6 +362,8 @@ class Any2AnyDenseRetrievalExactSearch:
                 self.results[qid][corpus_id] = score
 
         return self.results
+
+"""
 
     def load_results_file(self):
         # load the first stage results from file in format {qid: {doc_id: score}}

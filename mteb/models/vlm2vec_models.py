@@ -128,10 +128,10 @@ class VLM2VecWrapper:
         **kwargs: Any,
     ):
         import torchvision.transforms.functional as F
-
-        text = "<|image_1|> Represent the given image."
+        #change
+        text = "given formula car desigen <|image_1|>, retrieve the relevant rules that this design violate."
         all_image_embeddings = []
-        if isinstance(images, DataLoader):
+        if isinstance(images, DataLoader): #只是说明已打包成batch
             with torch.no_grad():
                 for batch in tqdm(images):
                     input_ids, pixel_values, image_sizes = [], [], []
