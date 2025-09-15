@@ -1,11 +1,117 @@
 from __future__ import annotations
 
 import os
+import torch
 from functools import partial
 
 from mteb.encoder_interface import PromptType
 from mteb.model_meta import ModelMeta
 from mteb.models.instruct_wrapper import InstructSentenceTransformerWrapper
+
+import logging
+from functools import partial
+from typing import Any, Literal
+
+import torch
+from PIL import Image
+from torch.utils.data import DataLoader
+from tqdm import tqdm
+from transformers import AutoConfig, AutoModelForCausalLM, AutoProcessor, AutoTokenizer, AutoModel
+
+from mteb.encoder_interface import PromptType
+from mteb.model_meta import ModelMeta
+from mteb.requires_package import (
+    requires_image_dependencies,
+    requires_package,
+    suggest_package,
+)
+
+class Qwen3Wrapper:
+    def __init__(
+        self,
+        model_name: str = "Qwen/Qwen3-Embedding-8B",
+        device: str = "cuda" if torch.cuda.is_available() else "cpu",
+        **kwargs,
+    ):
+        self.device = device
+        self.pooling = "last"
+        self.normalize = True
+        self.hidden_size = 4096  # 根据模型调整
+
+        # 加载 tokenizer
+        self.tokenizer = AutoTokenizer.from_pretrained(
+            model_name, trust_remote_code=True
+        )
+        # 加载模型
+        config = AutoConfig.from_pretrained(model_name, trust_remote_code=True)
+        config.use_cache = False
+        self.mdl = AutoModel.from_pretrained(
+            model_name,
+            config=config,
+            trust_remote_code=True,
+        ).to(device)
+        self.mdl.eval()
+
+    def encode(self, sentences: list[str], **kwargs) -> torch.Tensor:
+        """
+        兼容 MTEB 的 encode 方法
+        """
+        return self.get_text_embeddings(texts=sentences, **kwargs)
+
+    def encode_input(self, input_ids: torch.Tensor, attention_mask: torch.Tensor) -> torch.Tensor:
+        """
+        编码输入，返回 [batch_size, hidden_dim]
+        """
+        with torch.no_grad():
+            outputs = self.mdl(
+                input_ids=input_ids,
+                attention_mask=attention_mask,
+                output_hidden_states=True,
+                return_dict=True,
+            )
+            hidden_states = outputs.last_hidden_state  # 或 outputs.hidden_states[-1]
+            
+            # 取第一个 token（CLS）作为文本表示
+            reps = hidden_states[:, 0, :]
+            if self.normalize:
+                reps = torch.nn.functional.normalize(reps, p=2, dim=-1)
+        return reps
+
+    def get_text_embeddings(
+        self,
+        texts: list[str],
+        batch_size: int = 32,
+        **kwargs: Any
+    ) -> torch.Tensor:
+        """
+        纯文本版本的 embeddings
+        """
+        all_embeddings = []
+        for i in tqdm(range(0, len(texts), batch_size)):
+            batch_texts = texts[i : i + batch_size]
+            inputs = self.tokenizer(
+                batch_texts,
+                padding=True,
+                truncation=True,
+                max_length=256,
+                return_tensors="pt",
+            ).to(self.device)
+
+            batch_embeddings = self.encode_input(
+                input_ids=inputs["input_ids"],
+                attention_mask=inputs["attention_mask"]
+            )
+            all_embeddings.append(batch_embeddings.cpu())
+
+        return torch.cat(all_embeddings, dim=0)
+
+    # 如果你不需要图像，也可以直接删掉
+    def calculate_probs(self, text_embeddings, image_embeddings):
+        text_embeddings = text_embeddings / text_embeddings.norm(dim=-1, keepdim=True)
+        image_embeddings = image_embeddings / image_embeddings.norm(dim=-1, keepdim=True)
+        logits = torch.matmul(image_embeddings, text_embeddings.T)
+        probs = (logits * 100).softmax(dim=-1)
+        return probs
 
 
 def instruction_template(
@@ -175,7 +281,7 @@ Qwen3_Embedding_4B = ModelMeta(
 
 Qwen3_Embedding_8B = ModelMeta(
     loader=partial(  # type: ignore
-        q3e_instruct_loader,
+        Qwen3Wrapper,
         model_name_or_path=os.environ.get("Q3E_8B_PATH", "Qwen/Qwen3-Embedding-8B"),
     ),
     name="Qwen/Qwen3-Embedding-8B",

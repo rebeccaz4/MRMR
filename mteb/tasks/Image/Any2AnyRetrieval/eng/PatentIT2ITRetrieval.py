@@ -27,9 +27,9 @@ def _load_data(
         query_ds = query_ds.map(
             lambda x: {
                 "id": f"query-{split}-{x['id']}",  # 假设query的id字段叫"id"
-                "text": x["text"],               # 假设文本字段叫"text"
+                "text": x["caption"],               # 假设文本字段叫"text"
                 "image": x["image"],
-                "modality": x["modality"],
+                "modality": "image,text",
             }
         )
         query[split] = query_ds
@@ -44,9 +44,9 @@ def _load_data(
         corpus_ds = corpus_ds.map(
             lambda x: {
                 "id": f"corpus-{split}-{x['id']}",  # 假设corpus的id字段也叫"id"
-                "text": x["text"],
+                "text": x["caption"],
                 "image": x["image"],                # 保留image字段
-                "modality": x["modality"],                  #如果是image，text不合法，会被直接跳过报错
+                "modality": "image,text",                  
             },
         )
         corpus[split] = corpus_ds
@@ -70,17 +70,17 @@ def _load_data(
 
 
 
-class DesignI2AnyPlusRetrieval(AbsTaskAny2AnyRetrieval):
+class PatentIT2ITRetrieval(AbsTaskAny2AnyRetrieval):
     metadata = TaskMetadata(
-        name="DesignI2AnyRetrieval",
-        description="Retrieval of textual rule descriptions for design-related images.",
-        reference="https://huggingface.co/datasets/MMB-25/design",
+        name="PatentIT2ITRetrieval",
+        description="Retrieval task for patent images and their associated text descriptions.",
+        reference="https://huggingface.co/datasets/MMB-25/patent",
         dataset={
-            "path": "MMB-25/design",
+            "path": "MMB-25/patent",
             "revision": "main",  
         },
         type="Any2AnyRetrieval",
-        category="i2it",
+        category="it2it",
         eval_splits=["test"],
         eval_langs=["eng-Latn"],
         main_score="ndcg_at_10",

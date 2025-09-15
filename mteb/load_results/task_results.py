@@ -146,6 +146,7 @@ class TaskResult(BaseModel):
     scores: dict[Split, list[ScoresDict]]
     evaluation_time: float | None
     kg_co2_emissions: float | None = None
+    split_metrics: dict[Split, dict[str, Any]] | None = None
 
     @classmethod
     def from_task_results(
@@ -154,6 +155,7 @@ class TaskResult(BaseModel):
         scores: dict[Split, dict[HFSubset, ScoresDict]],
         evaluation_time: float,
         kg_co2_emissions: float | None = None,
+        split_metrics: dict[Split, dict[str, Any]] | None = None,
     ) -> TaskResult:
         task_meta = task.metadata
         subset2langscripts = task_meta.hf_subsets_to_langscripts
@@ -175,6 +177,7 @@ class TaskResult(BaseModel):
             scores=flat_scores,
             evaluation_time=evaluation_time,
             kg_co2_emissions=kg_co2_emissions,
+            split_metrics=split_metrics,
         )
 
     @field_validator("scores")

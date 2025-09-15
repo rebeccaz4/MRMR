@@ -129,7 +129,7 @@ class VLM2VecWrapper:
     ):
         import torchvision.transforms.functional as F
         #change
-        text = "given formula car desigen <|image_1|>, retrieve the relevant rules that this design violate."
+        text = "Retrieve the text description that has contradictory information to the given image.<|image_1|>"
         all_image_embeddings = []
         if isinstance(images, DataLoader): #只是说明已打包成batch
             with torch.no_grad():

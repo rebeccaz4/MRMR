@@ -422,7 +422,7 @@ class MTEB:
             encode_kwargs["batch_size"] = kwargs["batch_size"]
 
         # update logging to account for different levels of Verbosity (similar to the command line)
-
+        
         if verbosity == 0:
             datasets.logging.set_verbosity(logging.CRITICAL)  # 40
             datasets.logging.disable_progress_bar()  # Disable progress bar
@@ -642,6 +642,16 @@ class MTEB:
                         logger.info(f"Scores: {task_results[split]}")
 
                     self.last_evaluated_splits[task.metadata.name].append(split)
+                
+                # --- 新增：收集每个 split 的 split_metrics（如果有的话） ---
+                collected_split_metrics: dict[str, dict] = {}
+                for split_name, split_res in task_results.items():
+                    if isinstance(split_res, dict) and "split_metrics" in split_res:
+                        if split_res.get("split_metrics"):
+                            collected_split_metrics[split_name] = split_res.get("split_metrics")
+
+                if not collected_split_metrics:
+                    collected_split_metrics = None
 
                 # Create new TaskResult
                 new_results = TaskResult.from_task_results(
@@ -649,6 +659,7 @@ class MTEB:
                     task_results,
                     evaluation_time=evaluation_time,
                     kg_co2_emissions=kg_co2_emissions,
+                    split_metrics=collected_split_metrics,
                 )
 
                 # Merge with existing if needed
@@ -658,7 +669,7 @@ class MTEB:
                     merged_results = self._merge_results(existing_results, new_results)
                 else:
                     merged_results = new_results
-
+                
                 if output_path:
                     merged_results.to_disk(save_path)
 

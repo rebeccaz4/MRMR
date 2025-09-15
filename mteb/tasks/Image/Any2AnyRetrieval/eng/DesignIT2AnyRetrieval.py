@@ -5,35 +5,61 @@ from datasets import load_dataset
 from mteb.abstasks.Image.AbsTaskAny2AnyRetrieval import AbsTaskAny2AnyRetrieval
 from mteb.abstasks.TaskMetadata import TaskMetadata
 
+import json
+from pathlib import Path
+
+
+# design的query和corpus的image最多都只有一张
 
 def _load_data(
     path: str,
     splits: list[str],
     cache_dir: str | None = None,
     revision: str | None = None,
+    text_only: bool = False,
 ):
     corpus = {}
     query = {}
     qrels = {}
 
+    # 如果需要纯文本模式，则直接在函数里读取 captions.json
+    captions_map = {}
+    if text_only:
+        caption_path = "/home/siyue/Projects/mmb_pipeline/AllCaption/all_captions_design.json"
+        with open(caption_path, "r", encoding="utf-8") as f:
+            cap_list = json.load(f)
+        for item in cap_list:
+            subset = item["subset"]          # "corpus" 或 "query"
+            item_id = item["item_id"]
+            cap = item["captions"]["image"]["caption"]
+            captions_map[f"{subset}-{item_id}"] = cap
+
     for split in splits:
+        # ---- query ----
         query_ds = load_dataset(
             path,
-            "query",  # 注意是 "query" 不是 "queries"
+            "query",
             split=split,
             cache_dir=cache_dir,
             revision=revision,
         )
-        query_ds = query_ds.map(
-            lambda x: {
-                "id": f"query-{split}-{x['id']}",  # 假设query的id字段叫"id"
-                "text": x["text"],               # 假设文本字段叫"text"
-                "image": x["image"],
-                "modality": x["modality"],
-            }
-        )
-        query[split] = query_ds
 
+        def map_query(x):
+            new_text = x["text"]
+            if text_only and "<image>" in new_text:
+                cap_key = f"query-{x['id']}"
+                if cap_key in captions_map:
+                    new_text = new_text.replace("image", f"<{captions_map[cap_key]}>")
+            return {
+                "id": f"query-{split}-{x['id']}",
+                "text": new_text,
+                "image": None if text_only else x["image"],
+                "modality": "text" if text_only else x["modality"],
+            }
+
+        query[split] = query_ds.map(map_query)
+
+        # ---- corpus ----
         corpus_ds = load_dataset(
             path,
             "corpus",
@@ -41,16 +67,23 @@ def _load_data(
             cache_dir=cache_dir,
             revision=revision,
         )
-        corpus_ds = corpus_ds.map(
-            lambda x: {
-                "id": f"corpus-{split}-{x['id']}",  # 假设corpus的id字段也叫"id"
-                "text": x["text"],
-                "image": x["image"],                # 保留image字段
-                "modality": x["modality"],                  #如果是image，text不合法，会被直接跳过报错
-            },
-        )
-        corpus[split] = corpus_ds
 
+        def map_corpus(x):
+            new_text = x["text"]
+            if text_only and "<image>" in new_text:
+                cap_key = f"corpus-{x['id']}"
+                if cap_key in captions_map:
+                    new_text = new_text.replace("image", f"<{captions_map[cap_key]}>")
+            return {
+                "id": f"corpus-{split}-{x['id']}",
+                "text": new_text,
+                "image": None if text_only else x["image"],
+                "modality": "text" if text_only else x["modality"],
+            }
+
+        corpus[split] = corpus_ds.map(map_corpus)
+
+        # ---- qrels ----
         qrels_ds = load_dataset(
             path,
             "qrels",
@@ -60,19 +93,18 @@ def _load_data(
         )
         qrels[split] = {}
         for row in qrels_ds:
-            qid = f"query-{split}-{row['query-id']}"   # qrels里字段名可能是query_id
-            did = f"corpus-{split}-{row['corpus-id']}" # corpus_id
-            if qid not in qrels[split]:
-                qrels[split][qid] = {}
-            qrels[split][qid][did] = int(row["score"])
+            qid = f"query-{split}-{row['query-id']}"
+            did = f"corpus-{split}-{row['corpus-id']}"
+            qrels[split].setdefault(qid, {})[did] = int(row["score"])
 
     return corpus, query, qrels
 
 
 
-class DesignI2AnyRetrieval(AbsTaskAny2AnyRetrieval):
+# 不能随便填！！！！模型会用这个检验
+class DesignIT2AnyRetrieval(AbsTaskAny2AnyRetrieval):
     metadata = TaskMetadata(
-        name="DesignI2AnyRetrieval",
+        name="DesignIT2AnyRetrieval",
         description="Retrieval of textual rule descriptions for design-related images.",
         reference="https://huggingface.co/datasets/MMB-25/design",
         dataset={
@@ -80,13 +112,13 @@ class DesignI2AnyRetrieval(AbsTaskAny2AnyRetrieval):
             "revision": "main",  
         },
         type="Any2AnyRetrieval",
-        category="i2it",
+        category="t2t",
         eval_splits=["test"],
         eval_langs=["eng-Latn"],
         main_score="ndcg_at_10",
         task_subtypes=["Image Text Retrieval"],
         dialect=[],
-        modalities=["image", "text"],
+        modalities=["text"],
         sample_creation="created",
         bibtex_citation=r"""
 @misc{design_dataset2024,
@@ -112,11 +144,14 @@ class DesignI2AnyRetrieval(AbsTaskAny2AnyRetrieval):
     )
 
     def load_data(self, **kwargs):
+        text_only=kwargs.get("text_only", False)
+        print(text_only)
         self.corpus, self.queries, self.relevant_docs = _load_data(
             path=self.metadata_dict["dataset"]["path"],
             splits=self.metadata_dict["eval_splits"],
             cache_dir=kwargs.get("cache_dir", None),
             revision=self.metadata_dict["dataset"]["revision"],
+            text_only=text_only,
         )
         self.data_loaded = True
 #load-data是因为hugging face上的数据格式和MTEB要的有差距

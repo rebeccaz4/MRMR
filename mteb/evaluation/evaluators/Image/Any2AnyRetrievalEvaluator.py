@@ -106,7 +106,326 @@ class Any2AnyDenseRetrievalExactSearch:
 
         if self.previous_results is not None:
             self.previous_results = self.load_results_file()
+    
+    def search(
+            self,
+            corpus: Dataset,
+            queries: Dataset,
+            top_k: int,
+            score_function: str,
+            task_name: str,
+            split_corpus: bool, # for negation
+            return_sorted: bool = False,
+            **kwargs,
+        ) -> dict[str, dict[str, float]]:
+        if hasattr(self.model, "similarity"):
+            score_function = self.model.similarity
+            logger.info("Scoring Function: from model")
+        else:
+            if score_function not in self.score_functions:
+                raise ValueError(
+                    f"score function: {score_function} must be either (cos_sim) for cosine similarity or (dot) for dot product"
+                )
+            logger.info(
+                f"Scoring Function: {self.score_function_desc[score_function]} ({score_function})"
+            )
+            score_function = self.score_functions[score_function]
+       
+        logger.info("Encoding Queries.")
+        queries = list(queries)  # 确保 queries 是 list of dict
+        query_ids = [item["id"] for item in queries]
+        self.results = {qid: {} for qid in query_ids}
 
+        all_query_embeddings = []
+
+        # 直接逐条处理
+        for idx, item in enumerate(queries):
+            modality = item.get("modality")
+            try:
+                if modality == "text":
+                    emb = self.model.get_text_embeddings(
+                        texts=[item["text"]],
+                        task_name=task_name,
+                        prompt_type=PromptType.query,
+                        **self.encode_kwargs,
+                    )
+
+                elif modality == "image":
+                    dataset = ImageDataset(
+                        [item],
+                        image_column_name="image",
+                        transform=self.transform
+                    )
+                    dataloader = DataLoader(
+                        dataset,
+                        batch_size=1,
+                        shuffle=False,
+                        collate_fn=custom_collate_fn,
+                        num_workers=0,
+                    )
+                    emb = self.model.get_image_embeddings(
+                        images=dataloader,
+                        task_name=task_name,
+                        prompt_type=PromptType.query,
+                        **self.encode_kwargs,
+                    )
+
+                elif modality == "image,text":
+                    dataset = ImageDataset(
+                        [item],
+                        image_column_name="image",
+                        transform=self.transform
+                    )
+                    dataloader = DataLoader(
+                        dataset,
+                        batch_size=1,
+                        shuffle=False,
+                        collate_fn=custom_collate_fn,
+                        num_workers=0,
+                    )
+                    emb = self.model.get_fused_embeddings(
+                        texts=[item["text"]],
+                        images=dataloader,
+                        task_name=task_name,
+                        prompt_type=PromptType.query,
+                        **self.encode_kwargs,
+                    )
+
+                else:
+                    logger.warning(f"Unsupported modality: {modality}, skipping.")
+                    continue
+
+                # 将 embedding 添加到总列表
+                all_query_embeddings.append(emb)
+
+            except Exception as e:
+                logger.warning(f"Failed to encode item at index {idx}: {e}")
+                continue
+
+        # 拼接所有 embedding
+        if all_query_embeddings:
+            query_embeddings = torch.cat(all_query_embeddings, dim=0)
+        else:
+            query_embeddings = torch.empty((0,))
+        
+        logger.info("Preparing Corpus...")
+        
+        # for negation    
+        if split_corpus:
+            corpus_ids = list(corpus["id"])
+            corpus_id_to_idx = {cid: idx for idx, cid in enumerate(corpus_ids)}
+
+            # 自动生成 candidate docs：x -> [x_1, x_2, x_3, x_4]
+            def generate_candidates(qid):
+                numeric_id = qid.split("-")[-1]
+                return [f"corpus-test-{numeric_id}_{i}" for i in range(1, 5)]
+
+            # 每个 query 单独检索
+            for query_itr, query_id in enumerate(query_ids):
+                q_emb = query_embeddings[query_itr].unsqueeze(0)  # (1,D)
+                candidate_ids = generate_candidates(query_id)
+
+                sub_embeddings = []
+                valid_ids = []
+
+                for cid in candidate_ids:
+                    idx = corpus_id_to_idx.get(cid, None)
+                    if idx is None:
+                        logger.warning(f"Corpus id {cid} not found")
+                        continue
+                    item = corpus[idx]
+                    modality = item.get("modality")
+
+                    try:
+                        if modality == "text":
+                            emb = self.model.get_text_embeddings(
+                                texts=[item["text"]],
+                                task_name=task_name,
+                                prompt_type=PromptType.passage,
+                                **self.encode_kwargs,
+                            )
+                        elif modality == "image":
+                            dataset = ImageDataset(
+                                [item], image_column_name="image", transform=self.transform
+                            )
+                            dataloader = DataLoader(
+                                dataset,
+                                batch_size=1,
+                                shuffle=False,
+                                collate_fn=custom_collate_fn,
+                                num_workers=0,
+                            )
+                            emb = self.model.get_image_embeddings(
+                                images=dataloader,
+                                task_name=task_name,
+                                prompt_type=PromptType.passage,
+                                **self.encode_kwargs,
+                            )
+                        elif modality == "image,text":
+                            dataset = ImageDataset(
+                                [item], image_column_name="image", transform=self.transform
+                            )
+                            dataloader = DataLoader(
+                                dataset,
+                                batch_size=1,
+                                shuffle=False,
+                                collate_fn=custom_collate_fn,
+                                num_workers=0,
+                            )
+                            emb = self.model.get_fused_embeddings(
+                                texts=[item["text"]],
+                                images=dataloader,
+                                task_name=task_name,
+                                prompt_type=PromptType.passage,
+                                **self.encode_kwargs,
+                            )
+                        else:
+                            logger.warning(f"Unsupported modality: {modality}, skipping.")
+                            continue
+                        sub_embeddings.append(emb)
+                        valid_ids.append(cid)
+                    except Exception as e:
+                        logger.warning(f"Failed to encode doc {cid}: {e}")
+                        continue
+
+                if not sub_embeddings:
+                    continue
+
+                sub_embeddings = torch.cat(sub_embeddings, dim=0)  # (num_docs,D)
+                cos_scores = score_function(q_emb, sub_embeddings)  # (1,num_docs)
+                cos_scores[torch.isnan(cos_scores)] = -1
+
+                # top_k
+                cos_topk_values, cos_topk_idx = torch.topk(
+                    cos_scores,
+                    min(top_k, cos_scores.size(1)),
+                    dim=1,
+                    largest=True,
+                    sorted=return_sorted,
+                )
+
+                cos_topk_values = cos_topk_values.cpu().tolist()[0]
+                cos_topk_idx = cos_topk_idx.cpu().tolist()[0]
+
+                self.results[query_id] = {
+                    valid_ids[i]: cos_topk_values[j] for j, i in enumerate(cos_topk_idx)
+                }
+
+            return self.results
+        
+        corpus_ids = list(corpus["id"])
+
+        logger.info("Encoding Corpus in batches... Warning: This might take a while!")
+
+        result_heaps = {qid: [] for qid in query_ids}
+
+        for chunk_start in range(0, len(corpus), self.corpus_chunk_size):
+            chunk = corpus.select(
+                range(
+                    chunk_start, min(chunk_start + self.corpus_chunk_size, len(corpus))
+                )
+            )
+            chunk_ids = corpus_ids[chunk_start : chunk_start + self.corpus_chunk_size]
+
+            sub_corpus_embeddings = []
+            valid_chunk_ids = []
+            
+            # check the modality one by one
+            for i, item in enumerate(chunk):
+                modality = item.get("modality")
+                try:
+                    if modality == "text":
+                        embedding = self.model.get_text_embeddings(
+                            texts=[item["text"]],
+                            task_name=task_name,
+                            prompt_type=PromptType.passage,
+                            **self.encode_kwargs,
+                        )
+                    elif modality == "image":
+                        dataset = ImageDataset(
+                            [item], image_column_name="image", transform=self.transform
+                        )
+                        dataloader = DataLoader(
+                            dataset,
+                            batch_size=1,
+                            shuffle=False,
+                            collate_fn=custom_collate_fn,
+                            num_workers=0,
+                        )
+                        embedding = self.model.get_image_embeddings(
+                            images=dataloader,
+                            task_name=task_name,
+                            prompt_type=PromptType.passage,
+                            **self.encode_kwargs,
+                        )
+                    elif modality == "image,text":
+                        dataset = ImageDataset(
+                            [item], image_column_name="image", transform=self.transform
+                        )
+                        dataloader = DataLoader(
+                            dataset,
+                            batch_size=1,
+                            shuffle=False,
+                            collate_fn=custom_collate_fn,
+                            num_workers=0,
+                        )
+                        embedding = self.model.get_fused_embeddings(
+                            texts=[item["text"]],
+                            images=dataloader,
+                            task_name=task_name,
+                            prompt_type=PromptType.passage,
+                            **self.encode_kwargs,
+                        )
+                    else:
+                        logger.warning(f"Unsupported modality: {modality}, skipping.")
+                        continue
+
+                    sub_corpus_embeddings.append(embedding)
+                    valid_chunk_ids.append(chunk_ids[i])
+                except Exception as e:
+                    logger.warning(f"Failed to encode item at index {chunk_start + i}: {e}")
+                    continue
+
+            if not sub_corpus_embeddings:
+                continue
+
+            sub_corpus_embeddings = torch.cat(sub_corpus_embeddings, dim=0)
+
+            cos_scores = score_function(query_embeddings, sub_corpus_embeddings)
+            cos_scores[torch.isnan(cos_scores)] = -1
+
+            cos_scores_top_k_values, cos_scores_top_k_idx = torch.topk(
+                cos_scores,
+                min(top_k, cos_scores.size(1)),
+                dim=1,
+                largest=True,
+                sorted=return_sorted,
+            )
+            cos_scores_top_k_values = cos_scores_top_k_values.cpu().tolist()
+            cos_scores_top_k_idx = cos_scores_top_k_idx.cpu().tolist()
+
+            for query_itr in range(len(query_embeddings)):
+                query_id = query_ids[query_itr]
+                for sub_corpus_id, score in zip(
+                    cos_scores_top_k_idx[query_itr], cos_scores_top_k_values[query_itr]
+                ):
+                    corpus_id = valid_chunk_ids[sub_corpus_id]
+                    if len(result_heaps[query_id]) < top_k:
+                        heapq.heappush(result_heaps[query_id], (score, corpus_id))
+                    else:
+                        heapq.heappushpop(result_heaps[query_id], (score, corpus_id))
+                        
+        for qid in result_heaps:
+            for score, corpus_id in result_heaps[qid]:
+                self.results[qid][corpus_id] = score
+
+        return self.results
+        
+
+    """
+    最初的mteb原始版本
+    
+    
     def search(
         self,
         corpus: Dataset,  # solve memoery issues
@@ -283,9 +602,10 @@ class Any2AnyDenseRetrievalExactSearch:
                 self.results[qid][corpus_id] = score
 
         return self.results
+                 
                         
-                        
-        """
+        ### 这里是所有corpus一起编码的版本
+        
         result_heaps = {qid: [] for qid in query_ids}
         for chunk_start in range(0, len(corpus), self.corpus_chunk_size):
             chunk = corpus.select(
@@ -332,7 +652,9 @@ class Any2AnyDenseRetrievalExactSearch:
                     )
                 else:
                     raise ValueError(f"Unsupported modality: {corpus_modality}")
-
+            
+            # 这里是query和一小块一小块的corpus算相似度的，所以没有把所有的都sub-embedding加到一起
+            
             cos_scores = score_function(query_embeddings, sub_corpus_embeddings)
             cos_scores[torch.isnan(cos_scores)] = -1
 
@@ -417,7 +739,10 @@ class Any2AnyRetrievalEvaluator(Evaluator):
         self,
         corpus: dict[str, dict[str, str | Image.Image]],
         queries: dict[str, dict[str, str | Image.Image]],
+        **kwargs,
     ) -> dict[str, dict[str, float]]:
+        split_corpus = kwargs.pop("split_corpus", False)
+        
         if not self.retriever:
             raise ValueError("Model/Technique has not been provided!")
 
@@ -427,6 +752,7 @@ class Any2AnyRetrievalEvaluator(Evaluator):
             self.top_k,
             self.score_function,
             task_name=self.task_name,
+            split_corpus=split_corpus,
         )
 
     @staticmethod
@@ -434,6 +760,9 @@ class Any2AnyRetrievalEvaluator(Evaluator):
         qrels: dict[str, dict[str, int]],
         results: dict[str, dict[str, float]],
         k_values: list[int],
+        split_results: bool, # 新增参数：是否进行分类评估
+        category_map: dict[str, str] | None = None,
+        queries: dict[str, dict[str, str | Image.Image]] | None = None,
         ignore_identical_ids: bool = False,
         skip_first_result: bool = False,
     ) -> tuple[
@@ -442,6 +771,7 @@ class Any2AnyRetrievalEvaluator(Evaluator):
         dict[str, float],
         dict[str, float],
         dict[str, float],
+        dict[str, dict[str, float]],   # <--- 新增：各类别指标
     ]:
         if ignore_identical_ids:
             logger.debug(
@@ -471,7 +801,8 @@ class Any2AnyRetrievalEvaluator(Evaluator):
             all_recalls[f"Recall@{k}"] = []
             all_precisions[f"P@{k}"] = []
             all_cv_recalls[f"CV_Recall@{k}"] = []  # (new) CV-style Recall
-
+       
+        # 计算出了每个query的所有指标
         map_string = "map_cut." + ",".join([str(k) for k in k_values])
         ndcg_string = "ndcg_cut." + ",".join([str(k) for k in k_values])
         recall_string = "recall." + ",".join([str(k) for k in k_values])
@@ -515,7 +846,7 @@ class Any2AnyRetrievalEvaluator(Evaluator):
             all_precisions.copy(),
             all_cv_recalls.copy(),
         )
-
+            
         for k in k_values:
             ndcg[f"NDCG@{k}"] = round(sum(ndcg[f"NDCG@{k}"]) / len(scores), 5)
             _map[f"MAP@{k}"] = round(sum(_map[f"MAP@{k}"]) / len(scores), 5)
@@ -529,9 +860,76 @@ class Any2AnyRetrievalEvaluator(Evaluator):
             results,
             {**all_ndcgs, **all_aps, **all_recalls, **all_precisions, **all_cv_recalls},
         )
+        
+        # === 新增：split_results 分类评估 ===
+        split_metrics = {}
+        print(split_results, queries is not None)
+        queries = {x["id"]: x for x in queries}
+        print(type(queries))
+        # 调用一定要记得传queries，否则即使split-results是true，也不会进入这个分支！
+        if split_results and queries is not None:
+            # 先按类别分组
+            queries_by_cat = {}
+            for qid in scores.keys():
+                cat = queries[qid].get("category", "unknown")
+                if cat not in queries_by_cat:
+                    queries_by_cat[cat] = []
+                queries_by_cat[cat].append(qid)
 
-        return ndcg, _map, recall, precision, cv_recall, naucs
+            # 分类别计算指标
+            for cat, qids in queries_by_cat.items():
+                cat_metrics = {"ndcg": {}, "map": {}, "recall": {}, "precision": {}, "cv_recall": {}}
+                for k in k_values:
+                    cat_metrics["ndcg"][f"NDCG@{k}"] = round(
+                        sum(all_ndcgs[f"NDCG@{k}"][i] for i, qid in enumerate(scores.keys()) if qid in qids) / len(qids), 5
+                    )
+                    cat_metrics["map"][f"MAP@{k}"] = round(
+                        sum(all_aps[f"MAP@{k}"][i] for i, qid in enumerate(scores.keys()) if qid in qids) / len(qids), 5
+                    )
+                    cat_metrics["recall"][f"Recall@{k}"] = round(
+                        sum(all_recalls[f"Recall@{k}"][i] for i, qid in enumerate(scores.keys()) if qid in qids) / len(qids), 5
+                    )
+                    cat_metrics["precision"][f"P@{k}"] = round(
+                        sum(all_precisions[f"P@{k}"][i] for i, qid in enumerate(scores.keys()) if qid in qids) / len(qids), 5
+                    )
+                    cat_metrics["cv_recall"][f"CV_Recall@{k}"] = round(
+                        sum(all_cv_recalls[f"CV_Recall@{k}"][i] for i, qid in enumerate(scores.keys()) if qid in qids) / len(qids), 5
+                    )
+                split_metrics[cat] = cat_metrics
+            
+            print(category_map is not None)
+            
+            # 是否需要重新组合小类成大类
+            if category_map is not None:  
+                coarse_groups = {}
+                for fine_cat, qids in queries_by_cat.items():
+                    coarse = category_map.get(fine_cat, "other")
+                    coarse_groups.setdefault(coarse, []).extend(qids)
 
+                for gname, qids in coarse_groups.items():
+                    g_metrics = {"ndcg": {}, "map": {}, "recall": {}, "precision": {}, "cv_recall": {}}
+                    for k in k_values:
+                        g_metrics["ndcg"][f"NDCG@{k}"] = round(
+                            sum(all_ndcgs[f"NDCG@{k}"][i] for i, qid in enumerate(scores.keys()) if qid in qids) / len(qids), 5
+                        )
+                        g_metrics["map"][f"MAP@{k}"] = round(
+                            sum(all_aps[f"MAP@{k}"][i] for i, qid in enumerate(scores.keys()) if qid in qids) / len(qids), 5
+                        )
+                        g_metrics["recall"][f"Recall@{k}"] = round(
+                            sum(all_recalls[f"Recall@{k}"][i] for i, qid in enumerate(scores.keys()) if qid in qids) / len(qids), 5
+                        )
+                        g_metrics["precision"][f"P@{k}"] = round(
+                            sum(all_precisions[f"P@{k}"][i] for i, qid in enumerate(scores.keys()) if qid in qids) / len(qids), 5
+                        )
+                        g_metrics["cv_recall"][f"CV_Recall@{k}"] = round(
+                            sum(all_cv_recalls[f"CV_Recall@{k}"][i] for i, qid in enumerate(scores.keys()) if qid in qids) / len(qids), 5
+                        )
+                    # 存到 split_metrics，加个前缀区分，例如 "coarse/groupA"
+                    split_metrics[f"coarse/{gname}"] = g_metrics
+
+        return ndcg, _map, recall, precision, cv_recall, naucs, split_metrics
+    
+    
     @staticmethod
     def evaluate_custom(
         qrels: dict[str, dict[str, int]],

@@ -335,7 +335,8 @@ class AbsTaskAny2AnyRetrieval(AbsTask):
         self, retriever, corpus, queries, relevant_docs, hf_subset: str, **kwargs
     ):
         start_time = time()
-        results = retriever(corpus, queries)
+        split_corpus = kwargs.get("split_corpus", False)
+        results = retriever(corpus, queries, split_corpus=split_corpus)
         end_time = time()
         logger.info(f"Time taken to retrieve: {end_time - start_time:.2f} seconds")
 
@@ -364,13 +365,19 @@ class AbsTaskAny2AnyRetrieval(AbsTask):
 
             with open(qrels_save_path, "w") as f:
                 json.dump(results, f)
+        
+        split_results = kwargs.get("split_results", False)
+        category_map = kwargs.get("category_map", None)
 
-        ndcg, _map, recall, precision, cv_recall, naucs = retriever.evaluate(
+        ndcg, _map, recall, precision, cv_recall, naucs, split_metrics = retriever.evaluate(
             relevant_docs,
             results,
             retriever.k_values,
+            queries=queries,
             ignore_identical_ids=self.ignore_identical_ids,
             skip_first_result=self.skip_first_result,
+            split_results=split_results,
+            category_map=category_map,
         )
         mrr, naucs_mrr = retriever.evaluate_custom(
             relevant_docs, results, retriever.k_values, "mrr"
@@ -423,7 +430,9 @@ class AbsTaskAny2AnyRetrieval(AbsTask):
             )
             with open(errors_save_path, "w") as f:
                 json.dump(errors, f)
-
+                
+        scores["split_metrics"] = split_metrics if 'split_metrics' in locals() else {}
+             
         return scores
 
     def _add_main_score(self, scores: ScoresDict) -> None:
