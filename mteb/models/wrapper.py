@@ -14,12 +14,12 @@ class Wrapper:
     """Base class to indicate that this is a wrapper for a model.
     Also contains some utility functions for wrappers for working with prompts and instructions.
     """
-
+    # 3 types， 要么是str且有{}，要么是函数(instruction, prompt_type) -> str，要么是None
     instruction_template: str | Callable[[str, str], str] | None = None
 
     @staticmethod
     def get_prompt_name(
-        task_to_prompt: dict[str, str] | None,
+        task_to_prompt: dict[str, str] | None, # 这个表在哪里？
         task_name: str,
         prompt_type: PromptType | None,
     ) -> str | None:
@@ -92,6 +92,7 @@ class Wrapper:
         """Get the instruction/prompt to be used for encoding sentences."""
         task = mteb.get_task(task_name=task_name)
         task_metadata = task.metadata
+        # 
         if isinstance(task_metadata.prompt, dict) and prompt_type:
             if task_metadata.prompt.get(prompt_type.value):
                 return task_metadata.prompt[prompt_type.value]

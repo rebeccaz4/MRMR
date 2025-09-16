@@ -1,8 +1,6 @@
 from __future__ import annotations
 
-from datasets import load_dataset, Dataset
-
-from mteb.abstasks.Image.AbsTaskAny2AnyRetrieval import AbsTaskAny2AnyRetrieval
+from mteb.abstasks.AbsTaskRetrieval import AbsTaskRetrieval
 from mteb.abstasks.TaskMetadata import TaskMetadata
 
 import json
@@ -91,52 +89,42 @@ def _load_data(
 
     return corpus, query, qrels
 
-
-
-class NegationI2TRetrieval(AbsTaskAny2AnyRetrieval):
+class MedicalQARetrieval(AbsTaskRetrieval):
     metadata = TaskMetadata(
-        name="NegationI2TRetrieval",
-        description="Retrieval of textual rule descriptions for design-related images.",
-        reference="https://huggingface.co/datasets/MMB-25/negation",
+        name="MedicalQARetrieval",
+        description="The dataset consists 2048 medical question and answer pairs.",
+        reference="https://bmcbioinformatics.biomedcentral.com/articles/10.1186/s12859-019-3119-4",
         dataset={
-            "path": "MMB-25/negation",
-            "revision": "main",  
+            "path": "mteb/medical_qa",
+            "revision": "ae763399273d8b20506b80cf6f6f9a31a6a2b238",
         },
-        type="Any2AnyRetrieval",
-        category="t2t",
+        type="Retrieval",
+        category="s2s",
+        modalities=["text"],
         eval_splits=["test"],
         eval_langs=["eng-Latn"],
-        main_score="recall_at_1",
-        task_subtypes=["Image Text Retrieval"],
+        main_score="ndcg_at_10",
+        date=("2017-01-01", "2019-12-31"),  # best guess,
+        domains=["Medical", "Written"],
+        task_subtypes=["Article retrieval"],
+        license="cc0-1.0",
+        annotations_creators="derived",
         dialect=[],
-        # modalities=["image", "text"],
-        modalities=["text"],
-        sample_creation="created",
+        sample_creation="found",
         bibtex_citation=r"""
-@misc{design_dataset2024,
-  title={MMB-25: Design Rule Violation Retrieval Dataset},
-  author={Your Name or Org},
-  year={2024},
-  howpublished={\url{https://huggingface.co/datasets/MMB-25/design}},
+@article{BenAbacha-BMC-2019,
+  author = {Asma, Ben Abacha and Dina, Demner{-}Fushman},
+  journal = {{BMC} Bioinform.},
+  number = {1},
+  pages = {511:1--511:23},
+  title = {A Question-Entailment Approach to Question Answering},
+  url = {https://bmcbioinformatics.biomedcentral.com/articles/10.1186/s12859-019-3119-4},
+  volume = {20},
+  year = {2019},
 }
 """,
-        prompt={"query": "Given the image caption, retrieve the text has contradictory information to the query."},
-        descriptive_stats={
-            "n_samples": {"test":28},  # 请填入真实样本数
-            "avg_character_length": {
-                "test": {
-                    "average_document_length": 300.0,  # 乱填的
-                    "average_query_length": 0.0,       # image 无长度
-                    "num_documents": 700,            # 请替换为真实值
-                    "num_queries": 28,              # 请替换为真实值
-                    "average_relevant_docs_per_query": 1.0,
-                }
-            },
-        },
     )
     
-
-
     def load_data(self, **kwargs):
         text_only = kwargs.get("text_only", False)
         print(text_only)
@@ -148,6 +136,3 @@ class NegationI2TRetrieval(AbsTaskAny2AnyRetrieval):
             text_only=text_only,
         )
         self.data_loaded = True
-        
-#load-data是因为hugging face上的数据格式和MTEB要的有差距
-        

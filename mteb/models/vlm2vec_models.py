@@ -291,6 +291,7 @@ class VLM2VecWrapper:
             return image_embeddings
 
         # text_embeddings is not None and image_embeddings is not None
+        # get-fused有instruction！
         texts = iter(texts)
         all_fused_embeddings = []
         if isinstance(images, DataLoader):

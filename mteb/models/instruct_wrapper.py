@@ -35,6 +35,7 @@ def instruct_wrapper(
             **kwargs,
         ):
             if (
+                # 如果instrcution是str，则必须有占位符
                 isinstance(instruction_template, str)
                 and "{instruction}" not in instruction_template
             ):
