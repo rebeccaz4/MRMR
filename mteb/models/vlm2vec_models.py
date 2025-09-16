@@ -129,7 +129,8 @@ class VLM2VecWrapper:
     ):
         import torchvision.transforms.functional as F
         #change
-        text = "Retrieve the text description that has contradictory information to the given image.<|image_1|>"
+        text = "<|image_1|> Represent the given image and retrieve the text that has contradictory information to the image."
+        print(text)
         all_image_embeddings = []
         if isinstance(images, DataLoader): #只是说明已打包成batch
             with torch.no_grad():

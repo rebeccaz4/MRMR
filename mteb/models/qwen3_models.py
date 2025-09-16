@@ -86,6 +86,7 @@ class Qwen3Wrapper:
         """
         纯文本版本的 embeddings
         """
+
         all_embeddings = []
         for i in tqdm(range(0, len(texts), batch_size)):
             batch_texts = texts[i : i + batch_size]
@@ -93,7 +94,7 @@ class Qwen3Wrapper:
                 batch_texts,
                 padding=True,
                 truncation=True,
-                max_length=256,
+                max_length=4096,
                 return_tensors="pt",
             ).to(self.device)
 
@@ -124,6 +125,7 @@ def instruction_template(
             instruction = list(instruction.values())[0]  # TODO
         else:
             instruction = instruction[prompt_type]
+    
     return f"Instruct: {instruction}\nQuery:"
 
 
