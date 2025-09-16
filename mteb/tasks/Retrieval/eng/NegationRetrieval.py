@@ -5,29 +5,27 @@ from mteb.abstasks.TaskMetadata import TaskMetadata
 
 import json
 
-# query是image，corpus是text
+# query是image，corpus是text，所以只用转化query就可以了
 def _load_data(
     path: str,
     splits: list[str],
     cache_dir: str | None = None,
     revision: str | None = None,
-    text_only: bool = False,
 ):
-    corpus = {}
-    query = {}
-    qrels = {}
+    """
+       仅加载纯文本版本的 corpus / query / qrels。
+       query 的 text 来自 all_captions_negation.json
+    """
+    corpus, query, qrels = {}, {}, {}
 
-    # 如果需要纯文本模式，则直接在函数里读取 captions.json
-    captions_map = {}
-    if text_only:
-        caption_path = "/home/siyue/Projects/mmb_pipeline/AllCaption/all_captions_negation.json"
-        with open(caption_path, "r", encoding="utf-8") as f:
-            cap_list = json.load(f)
-        for item in cap_list:
-            subset = item["subset"]          # "query"
-            item_id = item["item_id"]
-            cap = item["captions"]["image"]["caption"]
-            captions_map[f"{subset}-{item_id}"] = cap
+    # 读取 captions.json，建立 {query-<item_id>: caption} 映射
+    caption_path = "/home/siyue/Projects/mmb_pipeline/AllCaption/all_captions_negation.json"
+    with open(caption_path, "r", encoding="utf-8") as f:
+        cap_list = json.load(f)
+    captions_map = {
+        f"query-{item['item_id']}": item["captions"]["image"]["caption"]
+        for item in cap_list
+    }
 
     for split in splits:
         # ---- query ----
@@ -40,16 +38,14 @@ def _load_data(
         )
 
         def map_query(x):
-            new_text = x["text"]
-            if text_only:
-                cap_key = f"query-{x['id']}"
-                if cap_key in captions_map:
-                    new_text = f"<{captions_map[cap_key]}>"
+            cap_key = f"query-{x['id']}"
+            # 如果在 captions_map 中找不到对应 caption，可选择用空字符串或原始文本
+            new_text = captions_map.get(cap_key, "")
             return {
                 "id": f"query-{split}-{x['id']}",
-                "text": new_text,
-                "image": None if text_only else x["image"],
-                "modality": "text" if text_only else x["modality"],
+                "text": f"<{new_text}>",  # 保持原始格式
+                # "image": None,
+                # "modality": "text",
             }
 
         query[split] = query_ds.map(map_query)
@@ -62,14 +58,14 @@ def _load_data(
             cache_dir=cache_dir,
             revision=revision,
         )
-        
+
         def map_corpus(x):
-             return {
-                        "id": f"corpus-{split}-{x['id']}",   # 假设 corpus 的 id 字段叫 "id"
-                        "text": x["text"],
-                        "image": x["image"],                 # 保留 image 字段
-                        "modality": x["modality"],           # 原样保留
-                    } 
+            return {
+                "id": f"corpus-{split}-{x['id']}",
+                "text": x["text"],
+                # "image": None,       
+                # "modality": "text",  
+            }
 
         corpus[split] = corpus_ds.map(map_corpus)
 
@@ -89,25 +85,25 @@ def _load_data(
 
     return corpus, query, qrels
 
-class MedicalQARetrieval(AbsTaskRetrieval):
+class NegationRetrieval(AbsTaskRetrieval):
     metadata = TaskMetadata(
-        name="MedicalQARetrieval",
-        description="The dataset consists 2048 medical question and answer pairs.",
-        reference="https://bmcbioinformatics.biomedcentral.com/articles/10.1186/s12859-019-3119-4",
+        name="NegationRetrieval",
+        description="The dataset consists 200 images and 800 discriptions.",
+        reference=" ",
         dataset={
-            "path": "mteb/medical_qa",
-            "revision": "ae763399273d8b20506b80cf6f6f9a31a6a2b238",
+            "path": "MMB-25/negation",
+            "revision": " ",
         },
         type="Retrieval",
-        category="s2s",
+        category="p2s",
         modalities=["text"],
         eval_splits=["test"],
         eval_langs=["eng-Latn"],
-        main_score="ndcg_at_10",
+        main_score="recall_at_1",
         date=("2017-01-01", "2019-12-31"),  # best guess,
         domains=["Medical", "Written"],
         task_subtypes=["Article retrieval"],
-        license="cc0-1.0",
+        license="openrail",
         annotations_creators="derived",
         dialect=[],
         sample_creation="found",
@@ -123,16 +119,16 @@ class MedicalQARetrieval(AbsTaskRetrieval):
   year = {2019},
 }
 """,
+        prompt={
+            "query": "Given a description of an image, retrieve the contradictory document."
+        },
     )
     
     def load_data(self, **kwargs):
-        text_only = kwargs.get("text_only", False)
-        print(text_only)
         self.corpus, self.queries, self.relevant_docs = _load_data(
             path=self.metadata_dict["dataset"]["path"],
             splits=self.metadata_dict["eval_splits"],
             cache_dir=kwargs.get("cache_dir", None),
             revision=self.metadata_dict["dataset"]["revision"],
-            text_only=text_only,
         )
         self.data_loaded = True

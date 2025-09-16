@@ -350,7 +350,8 @@ class AbsTaskRetrieval(AbsTask):
         self, retriever, corpus, queries, relevant_docs, hf_subset: str, **kwargs
     ) -> ScoresDict:
         start_time = time()
-        results = retriever(corpus, queries)
+        split_corpus = kwargs.get("split_corpus", False)
+        results = retriever(corpus, queries, split_corpus=split_corpus)
         end_time = time()
         logger.info(f"Time taken to retrieve: {end_time - start_time:.2f} seconds")
 
@@ -379,12 +380,18 @@ class AbsTaskRetrieval(AbsTask):
 
             with open(qrels_save_path, "w") as f:
                 json.dump(results, f)
+                
+        split_results = kwargs.get("split_results", False)
+        category_map = kwargs.get("category_map", None)
 
-        ndcg, _map, recall, precision, naucs = retriever.evaluate(
+        ndcg, _map, recall, precision, naucs, split_metrics = retriever.evaluate(
             relevant_docs,
             results,
             retriever.k_values,
+            queries=queries,
             ignore_identical_ids=self.ignore_identical_ids,
+            split_results=split_results,
+            category_map=category_map,
         )
         mrr, naucs_mrr = retriever.evaluate_custom(
             relevant_docs, results, retriever.k_values, "mrr"
