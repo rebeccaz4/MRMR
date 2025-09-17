@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datasets import load_dataset, Dataset
+
 from mteb.abstasks.AbsTaskRetrieval import AbsTaskRetrieval
 from mteb.abstasks.TaskMetadata import TaskMetadata
 
@@ -89,13 +91,13 @@ class NegationRetrieval(AbsTaskRetrieval):
     metadata = TaskMetadata(
         name="NegationRetrieval",
         description="The dataset consists 200 images and 800 discriptions.",
-        reference=" ",
+        reference="https://example.com",
         dataset={
             "path": "MMB-25/negation",
             "revision": " ",
         },
         type="Retrieval",
-        category="p2s",
+        category="s2s",
         modalities=["text"],
         eval_splits=["test"],
         eval_langs=["eng-Latn"],

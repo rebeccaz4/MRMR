@@ -95,21 +95,35 @@ class DenseRetrievalExactSearch:
             # custom functions can be used by extending the DenseRetrievalExactSearch class
             self.predict = self.model.predict
 
+    # query和corpus不用一条一条地encode，都是同一类型，故只需要加一个split_corpus参数分一下情况即可
     def search(
         self,
         corpus: dict[str, dict[str, str]],
         queries: dict[str, str | list[str]],
         top_k: int,
         task_name: str,
+        split_corpus: bool, # for negation
         instructions: dict[str, str] | None = None,
         request_qid: str | None = None,
         return_sorted: bool = False,
         **kwargs,
     ) -> dict[str, dict[str, float]]:
+        print(type(queries), type(corpus))
+        
+        # queries: Dataset -> dict[str, str]
+        queries_dict = {row["id"]: row["text"] for row in queries}
+        queries = queries_dict
+        
+        # corpus: Dataset -> dict[str, dict[str, str]]
+        corpus_dict = {row["id"]: {"text": row["text"],} for row in corpus}
+        corpus = corpus_dict
+        print(type(queries), type(corpus))
+        
         logger.info("Encoding Queries.")
         query_ids = list(queries.keys())
         self.results = {qid: {} for qid in query_ids}
         queries = [queries[qid] for qid in queries]  # type: ignore
+        
         if instructions:
             queries = [f"{query} {instructions[query]}".strip() for query in queries]
         if isinstance(queries[0], list):  # type: ignore
@@ -126,98 +140,182 @@ class DenseRetrievalExactSearch:
                 prompt_type=PromptType.query,
                 **self.encode_kwargs,
             )
+        
+        
+        logger.info("Encoding Corpus.")
+        
+        if split_corpus:
+            logger.info("Split-corpus mode")
 
-        logger.info("Sorting Corpus by document length (Longest first)...")
-        corpus_ids = sorted(
-            corpus,
-            reverse=True,
-        )
-        corpus = [corpus[cid] for cid in corpus_ids]  # type: ignore
+            # 每个 query 单独检索
+            for query_itr, qid in enumerate(query_ids):
+                candidate_ids = generate_candidates(qid)
 
-        logger.info("Encoding Corpus in batches... Warning: This might take a while!")
+                # 依次从 corpus 中提取候选文档
+                selected_corpus: list[dict] = []
+                candidate_ids_present: list[str] = []
 
-        itr = range(0, len(corpus), self.corpus_chunk_size)
+                # 遍历 candidate_ids，从 corpus 对应 split 中取出 item
+                for cid in candidate_ids:
+                    item = corpus.get(split, {}).get(cid)
+                    if item is None:
+                        logger.warning(f"Candidate corpus id {cid} not found for query {qid} in split {split}")
+                        continue
+                    selected_corpus.append(item)
+                    candidate_ids_present.append(cid)
 
-        result_heaps = {
-            qid: [] for qid in query_ids
-        }  # Keep only the top-k docs for each query
-        for batch_num, corpus_start_idx in enumerate(itr):
-            logger.info(f"Encoding Batch {batch_num + 1}/{len(itr)}...")
-            corpus_end_idx = min(corpus_start_idx + self.corpus_chunk_size, len(corpus))
+                if not selected_corpus:
+                    continue
 
-            # Encode chunk of corpus
-            if (
-                self.save_corpus_embeddings
-                and request_qid
-                and len(self.corpus_embeddings[request_qid])
-            ):
-                sub_corpus_embeddings = torch.tensor(
-                    self.corpus_embeddings[request_qid][batch_num]
+                # 编码这些候选文档，这里有默认不是encode-conversations
+                try:
+                    sub_corpus_embeddings = self.model.encode(
+                        selected_corpus,
+                        task_name=task_name,
+                        prompt_type=PromptType.document,
+                        request_qid=qid,
+                        **self.encode_kwargs,
+                    )
+                except Exception as e:
+                    logger.warning(f"Failed to encode candidate docs for query {qid}: {e}")
+                    continue
+
+                # 取出该 query 的 embedding
+                q_emb = query_embeddings[query_itr].unsqueeze(0)  # (1, D)
+
+                # 计算相似度
+                if hasattr(self.model, "similarity"):
+                    similarity_scores = self.model.similarity(q_emb, sub_corpus_embeddings)
+                else:
+                    similarity_scores = cos_sim(q_emb, sub_corpus_embeddings)
+
+                # 处理 NaN
+                is_nan = torch.isnan(similarity_scores)
+                if is_nan.sum() > 0:
+                    logger.warning(
+                        f"Found {is_nan.sum()} NaN values in the similarity scores for query {qid}. Replacing NaN with -1."
+                    )
+                similarity_scores[is_nan] = -1
+
+                # top-k（k 不超过候选数量）
+                num_docs = similarity_scores.size(1)
+                k = min(top_k, num_docs)
+                if k <= 0:
+                    continue
+
+                top_values, top_indices = torch.topk(
+                    similarity_scores,
+                    k,
+                    dim=1,
+                    largest=True,
+                    sorted=return_sorted,
                 )
-            else:
+                top_values = top_values.cpu().tolist()[0]
+                top_indices = top_indices.cpu().tolist()[0]
+
+                # 直接写入 self.results（保持与 false 分支相同的数据结构）
+                self.results.setdefault(qid, {})
+                for score, idx in zip(top_values, top_indices):
+                    cid = candidate_ids_present[idx]
+                    self.results[qid][cid] = score
+
+            return self.results
+
+
+
+        else:
+            logger.info("Sorting Corpus by document length (Longest first)...")
+            corpus_ids = sorted(
+                corpus,
+                reverse=True,
+            )
+            corpus = [corpus[cid] for cid in corpus_ids]  # type: ignore
+
+            logger.info("Encoding Corpus in batches... Warning: This might take a while!")
+
+            itr = range(0, len(corpus), self.corpus_chunk_size)
+
+            result_heaps = {
+                qid: [] for qid in query_ids
+            }  # Keep only the top-k docs for each query
+            for batch_num, corpus_start_idx in enumerate(itr):
+                logger.info(f"Encoding Batch {batch_num + 1}/{len(itr)}...")
+                corpus_end_idx = min(corpus_start_idx + self.corpus_chunk_size, len(corpus))
+
                 # Encode chunk of corpus
-                sub_corpus_embeddings = self.model.encode(
-                    corpus[corpus_start_idx:corpus_end_idx],  # type: ignore
-                    task_name=task_name,
-                    prompt_type=PromptType.passage,
-                    request_qid=request_qid,
-                    **self.encode_kwargs,
-                )
-                if self.save_corpus_embeddings and request_qid:
-                    self.corpus_embeddings[request_qid].append(sub_corpus_embeddings)
-
-            # Compute similarites using self defined similarity otherwise default to cosine-similarity
-            if hasattr(self.model, "similarity"):
-                similarity_scores = self.model.similarity(
-                    query_embeddings, sub_corpus_embeddings
-                )
-            else:
-                similarity_scores = cos_sim(query_embeddings, sub_corpus_embeddings)
-            is_nan = torch.isnan(similarity_scores)
-            if is_nan.sum() > 0:
-                logger.warning(
-                    f"Found {is_nan.sum()} NaN values in the similarity scores. Replacing NaN values with -1."
-                )
-            similarity_scores[is_nan] = -1
-
-            # Get top-k values
-            similarity_scores_top_k_values, similarity_scores_top_k_idx = torch.topk(
-                similarity_scores,
-                min(
-                    top_k + 1,
-                    len(similarity_scores[1])
-                    if len(similarity_scores) > 1
-                    else len(similarity_scores[-1]),
-                ),
-                dim=1,
-                largest=True,
-                sorted=return_sorted,
-            )
-            similarity_scores_top_k_values = (
-                similarity_scores_top_k_values.cpu().tolist()
-            )
-            similarity_scores_top_k_idx = similarity_scores_top_k_idx.cpu().tolist()
-
-            for query_itr in range(len(query_embeddings)):
-                query_id = query_ids[query_itr]
-                for sub_corpus_id, score in zip(
-                    similarity_scores_top_k_idx[query_itr],
-                    similarity_scores_top_k_values[query_itr],
+                if (
+                    self.save_corpus_embeddings
+                    and request_qid
+                    and len(self.corpus_embeddings[request_qid])
                 ):
-                    corpus_id = corpus_ids[corpus_start_idx + sub_corpus_id]
-                    if len(result_heaps[query_id]) < top_k:
-                        # Push item on the heap
-                        heapq.heappush(result_heaps[query_id], (score, corpus_id))
-                    else:
-                        # If item is larger than the smallest in the heap, push it on the heap then pop the smallest element
-                        heapq.heappushpop(result_heaps[query_id], (score, corpus_id))
+                    sub_corpus_embeddings = torch.tensor(
+                        self.corpus_embeddings[request_qid][batch_num]
+                    )
+                else:
+                    # Encode chunk of corpus
+                    sub_corpus_embeddings = self.model.encode(
+                        corpus[corpus_start_idx:corpus_end_idx],  # type: ignore
+                        task_name=task_name,
+                        prompt_type=PromptType.document,
+                        request_qid=request_qid,
+                        **self.encode_kwargs,
+                    )
+                    if self.save_corpus_embeddings and request_qid:
+                        self.corpus_embeddings[request_qid].append(sub_corpus_embeddings)
 
-        for qid in result_heaps:
-            for score, corpus_id in result_heaps[qid]:
-                self.results[qid][corpus_id] = score
+                # Compute similarites using self defined similarity otherwise default to cosine-similarity
+                if hasattr(self.model, "similarity"):
+                    similarity_scores = self.model.similarity(
+                        query_embeddings, sub_corpus_embeddings
+                    )
+                else:
+                    similarity_scores = cos_sim(query_embeddings, sub_corpus_embeddings)
+                is_nan = torch.isnan(similarity_scores)
+                if is_nan.sum() > 0:
+                    logger.warning(
+                        f"Found {is_nan.sum()} NaN values in the similarity scores. Replacing NaN values with -1."
+                    )
+                similarity_scores[is_nan] = -1
 
-        return self.results
+                # Get top-k values
+                similarity_scores_top_k_values, similarity_scores_top_k_idx = torch.topk(
+                    similarity_scores,
+                    min(
+                        top_k + 1,
+                        len(similarity_scores[1])
+                        if len(similarity_scores) > 1
+                        else len(similarity_scores[-1]),
+                    ),
+                    dim=1,
+                    largest=True,
+                    sorted=return_sorted,
+                )
+                similarity_scores_top_k_values = (
+                    similarity_scores_top_k_values.cpu().tolist()
+                )
+                similarity_scores_top_k_idx = similarity_scores_top_k_idx.cpu().tolist()
 
+                for query_itr in range(len(query_embeddings)):
+                    query_id = query_ids[query_itr]
+                    for sub_corpus_id, score in zip(
+                        similarity_scores_top_k_idx[query_itr],
+                        similarity_scores_top_k_values[query_itr],
+                    ):
+                        corpus_id = corpus_ids[corpus_start_idx + sub_corpus_id]
+                        if len(result_heaps[query_id]) < top_k:
+                            # Push item on the heap
+                            heapq.heappush(result_heaps[query_id], (score, corpus_id))
+                        else:
+                            # If item is larger than the smallest in the heap,
+                            # push it on the heap then pop the smallest element
+                            heapq.heappushpop(result_heaps[query_id], (score, corpus_id))
+
+            for qid in result_heaps:
+                for score, corpus_id in result_heaps[qid]:
+                    self.results[qid][corpus_id] = score
+
+            return self.results
+ 
     def load_results_file(self):
         # load the first stage results from file in format {qid: {doc_id: score}}
         if "https://" in self.previous_results:
@@ -460,11 +558,14 @@ class RetrievalEvaluator(Evaluator):
         )  # can lower it if reranking
         self.task_name = task_name
 
+    # 这里忽略了模型是cross encoder和bm25s的情况，直接默认所有我们测试的模型都是用的search分支
     def __call__(
         self,
         corpus: dict[str, dict[str, str]],
         queries: dict[str, str | list[str]],
+        **kwargs,
     ) -> dict[str, dict[str, float]]:
+        split_corpus = kwargs.get("split_corpus", False) # for negation
         if not self.retriever:
             raise ValueError("Model/Technique has not been provided!")
 
@@ -486,7 +587,8 @@ class RetrievalEvaluator(Evaluator):
                 corpus,
                 queries,
                 self.top_k,
-                task_name=self.task_name,  # type: ignore
+                task_name=self.task_name, # type: ignore
+                split_corpus=split_corpus,
             )
 
     @staticmethod
@@ -494,6 +596,9 @@ class RetrievalEvaluator(Evaluator):
         qrels: dict[str, dict[str, int]],
         results: dict[str, dict[str, float]],
         k_values: list[int],
+        split_results: bool, # for knowledge 
+        category_map: dict[str, str] | None = None, # for knowledge
+        queries: dict[str, str | list[str]] | None = None, # for knowledge
         ignore_identical_ids: bool = False,
     ) -> tuple[
         dict[str, float],
@@ -501,6 +606,7 @@ class RetrievalEvaluator(Evaluator):
         dict[str, float],
         dict[str, float],
         dict[str, float],
+        dict[str, dict[str, float]],
     ]:
         if ignore_identical_ids:
             logger.debug(
@@ -556,8 +662,68 @@ class RetrievalEvaluator(Evaluator):
         naucs = RetrievalEvaluator.evaluate_abstention(
             results, {**all_ndcgs, **all_aps, **all_recalls, **all_precisions}
         )
+        
+            # === 新增：split_results 分类评估 ===
+        split_metrics = {}
+        print(split_results, queries is not None)
+        queries = {x["id"]: x for x in queries}
+        print(type(queries))
+        # 调用一定要记得传queries，否则即使split-results是true，也不会进入这个分支！
+        if split_results and queries is not None:
+            # 先按类别分组
+            queries_by_cat = {}
+            for qid in scores.keys():
+                cat = queries[qid].get("category", "unknown")
+                if cat not in queries_by_cat:
+                    queries_by_cat[cat] = []
+                queries_by_cat[cat].append(qid)
 
-        return ndcg, _map, recall, precision, naucs
+            # 分类别计算指标
+            for cat, qids in queries_by_cat.items():
+                cat_metrics = {"ndcg": {}, "map": {}, "recall": {}, "precision": {}, "cv_recall": {}}
+                for k in k_values:
+                    cat_metrics["ndcg"][f"NDCG@{k}"] = round(
+                        sum(all_ndcgs[f"NDCG@{k}"][i] for i, qid in enumerate(scores.keys()) if qid in qids) / len(qids), 5
+                    )
+                    cat_metrics["map"][f"MAP@{k}"] = round(
+                        sum(all_aps[f"MAP@{k}"][i] for i, qid in enumerate(scores.keys()) if qid in qids) / len(qids), 5
+                    )
+                    cat_metrics["recall"][f"Recall@{k}"] = round(
+                        sum(all_recalls[f"Recall@{k}"][i] for i, qid in enumerate(scores.keys()) if qid in qids) / len(qids), 5
+                    )
+                    cat_metrics["precision"][f"P@{k}"] = round(
+                        sum(all_precisions[f"P@{k}"][i] for i, qid in enumerate(scores.keys()) if qid in qids) / len(qids), 5
+                    )
+                split_metrics[cat] = cat_metrics
+            
+            print(category_map is not None)
+            
+            # 是否需要重新组合小类成大类
+            if category_map is not None:  
+                coarse_groups = {}
+                for fine_cat, qids in queries_by_cat.items():
+                    coarse = category_map.get(fine_cat, "other")
+                    coarse_groups.setdefault(coarse, []).extend(qids)
+
+                for gname, qids in coarse_groups.items():
+                    g_metrics = {"ndcg": {}, "map": {}, "recall": {}, "precision": {}, "cv_recall": {}}
+                    for k in k_values:
+                        g_metrics["ndcg"][f"NDCG@{k}"] = round(
+                            sum(all_ndcgs[f"NDCG@{k}"][i] for i, qid in enumerate(scores.keys()) if qid in qids) / len(qids), 5
+                        )
+                        g_metrics["map"][f"MAP@{k}"] = round(
+                            sum(all_aps[f"MAP@{k}"][i] for i, qid in enumerate(scores.keys()) if qid in qids) / len(qids), 5
+                        )
+                        g_metrics["recall"][f"Recall@{k}"] = round(
+                            sum(all_recalls[f"Recall@{k}"][i] for i, qid in enumerate(scores.keys()) if qid in qids) / len(qids), 5
+                        )
+                        g_metrics["precision"][f"P@{k}"] = round(
+                            sum(all_precisions[f"P@{k}"][i] for i, qid in enumerate(scores.keys()) if qid in qids) / len(qids), 5
+                        )
+                    # 存到 split_metrics，加个前缀区分，例如 "coarse/groupA"
+                    split_metrics[f"coarse/{gname}"] = g_metrics
+
+        return ndcg, _map, recall, precision, naucs, split_metrics
 
     @staticmethod
     def evaluate_custom(
