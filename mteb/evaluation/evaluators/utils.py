@@ -10,6 +10,8 @@ import tqdm
 from packaging.version import Version
 from sklearn.metrics import auc
 
+logger = logging.getLogger(__name__)
+
 
 def cos_sim(a, b):
     """Computes the cosine similarity cos_sim(a[i], b[j]) for all i and j.
@@ -17,6 +19,9 @@ def cos_sim(a, b):
     Return:
         Matrix with res[i][j]  = cos_sim(a[i], b[j])
     """  # noqa: D402
+    
+    logger.warning(f"using cos_sim to calculate similarity")
+    
     if not isinstance(a, torch.Tensor):
         a = torch.tensor(a)
 

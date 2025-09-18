@@ -92,9 +92,10 @@ class Wrapper:
         """Get the instruction/prompt to be used for encoding sentences."""
         task = mteb.get_task(task_name=task_name)
         task_metadata = task.metadata
-        # 
+
         if isinstance(task_metadata.prompt, dict) and prompt_type:
             if task_metadata.prompt.get(prompt_type.value):
+                logger.warning(f"Using prompt from task metadata for task '{task_name}' and prompt type '{prompt_type}'.")
                 return task_metadata.prompt[prompt_type.value]
             logger.warning(
                 f"Prompt type '{prompt_type}' not found in task metadata for task '{task_name}'."

@@ -18,6 +18,7 @@ from mteb.models.wrapper import Wrapper
 
 logger = logging.getLogger(__name__)
 
+# transformers==4.51.0
 
 class Encoder(torch.nn.Module):
     def __init__(
@@ -184,7 +185,8 @@ class GmeQwen2VL(Wrapper):
             ]
         embeddings = self.encode(sentences, prompt_type=PromptType.passage**kwargs)
         return embeddings
-
+    
+    # image/text embedding 都是用的下面的fused embedding
     def get_image_embeddings(self, images: list[Image.Image] | DataLoader, **kwargs):
         return self.get_fused_embeddings(images=images, **kwargs)
 
@@ -210,13 +212,14 @@ class GmeQwen2VL(Wrapper):
         instruction=None,
         **kwargs: Any,
     ):
+        # 默认了doc没有instruction
         if prompt_type == PromptType.passage:
             instruction = None
         elif instruction is None:
             instruction = self.get_instruction(task_name, prompt_type)
             # NOTE: copied from the old get_gme_instruction function.
             if isinstance(instruction, str) and instruction[-1] != ".":
-                instruction += "."
+                instruction += "." 
         self.model = self.model.to(self.device)
 
         if isinstance(images, DataLoader):
@@ -262,7 +265,9 @@ class GmeQwen2VL(Wrapper):
                 texts=text_batch, images=img_batch, instruction=instruction, **kwargs
             )
             with torch.inference_mode():
+                # 用的上面的embed
                 embeddings = self.model.embed(**inputs, device=self.device)
+
             all_embeddings.append(embeddings.cpu())
             pbar.update(1)
         pbar.close()

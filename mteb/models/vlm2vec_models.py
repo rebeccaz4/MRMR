@@ -17,6 +17,7 @@ from mteb.requires_package import (
     requires_package,
     suggest_package,
 )
+from mteb.models.wrapper import Wrapper
 
 logger = logging.getLogger(__name__)
 
@@ -128,9 +129,10 @@ class VLM2VecWrapper:
         **kwargs: Any,
     ):
         import torchvision.transforms.functional as F
-        #change
-        text = "<|image_1|> Represent the given image and retrieve the text that has contradictory information to the image."
-        print(text)
+        
+        instruction = Wrapper.get_instruction(task_name, prompt_type)
+        text = f"{instruction} <|image_1|>"       
+        logger.warning(f"the instruction of query is: {text}")
         all_image_embeddings = []
         if isinstance(images, DataLoader): #只是说明已打包成batch
             with torch.no_grad():
@@ -218,12 +220,13 @@ class VLM2VecWrapper:
         **kwargs: Any,
     ):
         all_text_embeddings = []
-
+        instruaction = Wrapper.get_instruction(task_name, prompt_type)
         with torch.no_grad():
             for i in tqdm(range(0, len(texts), batch_size)):
                 input_ids = []
                 batch_texts = texts[i : i + batch_size]
-                for text in batch_texts:
+                batch_texts_with_instruction = [instruaction + " " + text for text in batch_texts]
+                for text in batch_texts_with_instruction:
                     inputs = self.processor(
                         text,
                         None,
@@ -291,7 +294,7 @@ class VLM2VecWrapper:
             return image_embeddings
 
         # text_embeddings is not None and image_embeddings is not None
-        # get-fused有instruction！
+        instruction = Wrapper.get_instruction(task_name, prompt_type)
         texts = iter(texts)
         all_fused_embeddings = []
         if isinstance(images, DataLoader):
@@ -301,7 +304,7 @@ class VLM2VecWrapper:
                     for b in batch:
                         text = next(texts)
                         inputs = self.processor(
-                            f"<|image_1|> Represent the given image with the following question: {text}",
+                            f"{instruction} {text} <|image_1|>",
                             [F.to_pil_image(b.to("cpu"))],
                             return_tensors="pt",
                             max_length=256,
@@ -338,7 +341,7 @@ class VLM2VecWrapper:
                     for b in batch_images:
                         text = next(texts)
                         inputs = self.processor(
-                            f"<|image_1|> Represent the given image with the following question: {text}",
+                            f"{instruction} {text} <|image_1|>",
                             [b],
                             return_tensors="pt",
                             max_length=256,

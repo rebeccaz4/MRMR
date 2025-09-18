@@ -13,6 +13,7 @@ from transformers import LlavaNextForConditionalGeneration, LlavaNextProcessor
 
 from mteb.encoder_interface import PromptType
 from mteb.model_meta import ModelMeta
+from mteb.models.wrapper import Wrapper
 
 E5_V_TRANSFORMERS_VERSION = (
     "4.44.2"  # Issue 1647: Only works with transformers==4.44.2.
@@ -42,19 +43,20 @@ class E5VWrapper:
         )
         self.model.eval()
         self.template = "<|start_header_id|>user<|end_header_id|>\n\n{}<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n \n"
-        self.text_prompt = self.template.format(
-            "<sent>\nSummary above sentence in one word: "
-        )
-        self.img_prompt = self.template.format(
-            "<image>\nSummary above image in one word: "
-        )
-        if not composed_prompt:
+        # self.text_prompt替换掉self.template中的{}
+        # self.text_prompt = self.template.format(
+        #     "<sent>\nSummary above sentence in one word: "
+        # )
+        # self.img_prompt = self.template.format(
+        #     "<image>\nSummary above image in one word: "
+        # )
+        # if not composed_prompt:
             # default composed embedding, to_do: move it to get_fused_embedding with "prompt_name" like MTEB text ones.
-            self.composed_prompt = self.template.format(
-                '[INST] <image> Modify this image with "{}" Describe modified image in one word: [/INST]'
-            )
-        else:
-            self.composed_prompt = self.template.format(composed_prompt)
+        #     self.composed_prompt = self.template.format(
+        #        '[INST] <image> Modify this image with "{}" Describe modified image in one word: [/INST]'
+        #    )
+        # else:
+        #     self.composed_prompt = self.template.format(composed_prompt)
 
     def get_text_embeddings(
         self,
@@ -66,7 +68,10 @@ class E5VWrapper:
         **kwargs: Any,
     ):
         all_text_embeddings = []
-
+        instruction = Wrapper.get_instruction(task_name, prompt_type)
+        self.text_prompt = self.template.format(
+            f"{instruction}\n<sent>"
+        )
         with torch.no_grad():
             for i in tqdm(range(0, len(texts), batch_size)):
                 batch_texts = texts[i : i + batch_size]
@@ -91,7 +96,10 @@ class E5VWrapper:
         **kwargs: Any,
     ):
         all_image_embeddings = []
-
+        instruction = Wrapper.get_instruction(task_name, prompt_type)
+        self.img_prompt = self.template.format(
+            f"{instruction}\n<image>"
+        )
         with torch.no_grad():
             if isinstance(images, DataLoader):
                 for batch_images in tqdm(images):
@@ -141,6 +149,11 @@ class E5VWrapper:
 
         all_fused_embeddings = []
         kwargs.update(batch_size=batch_size)
+
+        instruction = Wrapper.get_instruction(task_name, prompt_type)
+        self.composed_prompt = self.template.format(
+            f"{instruction}\n{}\n<image>"
+        )
 
         if texts is not None and images is not None:
             with torch.no_grad():

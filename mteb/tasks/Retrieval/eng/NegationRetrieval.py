@@ -1,26 +1,39 @@
 from __future__ import annotations
 
-from datasets import load_dataset, Dataset
+from datasets import load_dataset
+from typing import Dict, List, Union
 
 from mteb.abstasks.AbsTaskRetrieval import AbsTaskRetrieval
 from mteb.abstasks.TaskMetadata import TaskMetadata
 
 import json
 
-# query是image，corpus是text，所以只用转化query就可以了
+from typing import List, Dict, Union
+from datasets import load_dataset
+import json
+
 def _load_data(
     path: str,
-    splits: list[str],
+    splits: List[str],
     cache_dir: str | None = None,
     revision: str | None = None,
-):
+) -> tuple[
+    Dict[str, Dict[str, Dict[str, str]]],          # corpus[split][doc_id] = {"text": ...}
+    Dict[str, Dict[str, Union[str, List[str]]]],   # queries[split][query_id] = str | list[str]
+    Dict[str, Dict[str, Dict[str, int]]]           # qrels[split][query_id][doc_id] = int
+]:
     """
-       仅加载纯文本版本的 corpus / query / qrels。
-       query 的 text 来自 all_captions_negation.json
+    加载 NegationRetrieval 所需的纯文本数据。
+    返回:
+        corpus  : {split: {doc_id: {"text": str}}}
+        queries : {split: {query_id: str 或 list[str]}}
+        qrels   : {split: {query_id: {doc_id: int}}}
     """
-    corpus, query, qrels = {}, {}, {}
+    corpus_all:  Dict[str, Dict[str, Dict[str, str]]]        = {}
+    queries_all: Dict[str, Dict[str, Union[str, List[str]]]] = {}
+    qrels_all:   Dict[str, Dict[str, Dict[str, int]]]        = {}
 
-    # 读取 captions.json，建立 {query-<item_id>: caption} 映射
+    # 读取 captions 文件，建立 {query-<item_id>: caption} 映射
     caption_path = "/home/siyue/Projects/mmb_pipeline/AllCaption/all_captions_negation.json"
     with open(caption_path, "r", encoding="utf-8") as f:
         cap_list = json.load(f)
@@ -30,62 +43,48 @@ def _load_data(
     }
 
     for split in splits:
-        # ---- query ----
+        split_corpus: Dict[str, Dict[str, str]] = {}
+        split_queries: Dict[str, Union[str, List[str]]] = {}
+        split_qrels: Dict[str, Dict[str, int]] = {}
+
+        # ---- queries ----
         query_ds = load_dataset(
-            path,
-            "query",
-            split=split,
-            cache_dir=cache_dir,
-            revision=revision,
+            path, name="query", split=split,
+            cache_dir=cache_dir, revision=revision
         )
-
-        def map_query(x):
-            cap_key = f"query-{x['id']}"
-            # 如果在 captions_map 中找不到对应 caption，可选择用空字符串或原始文本
-            new_text = captions_map.get(cap_key, "")
-            return {
-                "id": f"query-{split}-{x['id']}",
-                "text": f"<{new_text}>",  # 保持原始格式
-                # "image": None,
-                # "modality": "text",
-            }
-
-        query[split] = query_ds.map(map_query)
+        for row in query_ds:
+            qid = f"query-{split}-{row['id']}"
+            cap_key = f"query-{row['id']}"
+            text = captions_map.get(cap_key, "")
+            split_queries[qid] = f"<{text}>"
 
         # ---- corpus ----
         corpus_ds = load_dataset(
-            path,
-            "corpus",
-            split=split,
-            cache_dir=cache_dir,
-            revision=revision,
+            path, name="corpus", split=split,
+            cache_dir=cache_dir, revision=revision
         )
-
-        def map_corpus(x):
-            return {
-                "id": f"corpus-{split}-{x['id']}",
-                "text": x["text"],
-                # "image": None,       
-                # "modality": "text",  
-            }
-
-        corpus[split] = corpus_ds.map(map_corpus)
+        for row in corpus_ds:
+            did = f"corpus-{split}-{row['id']}"
+            split_corpus[did] = {"text": row["text"]}
 
         # ---- qrels ----
         qrels_ds = load_dataset(
-            path,
-            "qrels",
-            split=split,
-            cache_dir=cache_dir,
-            revision=revision,
+            path, name="qrels", split=split,
+            cache_dir=cache_dir, revision=revision
         )
-        qrels[split] = {}
         for row in qrels_ds:
             qid = f"query-{split}-{row['query-id']}"
             did = f"corpus-{split}-{row['corpus-id']}"
-            qrels[split].setdefault(qid, {})[did] = int(row["score"])
+            split_qrels.setdefault(qid, {})[did] = int(row["score"])
 
-    return corpus, query, qrels
+        # 将每个 split 的结果存入总字典
+        corpus_all[split]  = split_corpus
+        queries_all[split] = split_queries
+        qrels_all[split]   = split_qrels
+
+    return corpus_all, queries_all, qrels_all
+
+
 
 class NegationRetrieval(AbsTaskRetrieval):
     metadata = TaskMetadata(
@@ -94,7 +93,7 @@ class NegationRetrieval(AbsTaskRetrieval):
         reference="https://example.com",
         dataset={
             "path": "MMB-25/negation",
-            "revision": " ",
+            "revision": "main",
         },
         type="Retrieval",
         category="s2s",
@@ -122,7 +121,7 @@ class NegationRetrieval(AbsTaskRetrieval):
 }
 """,
         prompt={
-            "query": "Given a description of an image, retrieve the contradictory document."
+            "query": "Given an image caption, retrieve descriptions that have contradictory information with the image."
         },
     )
     

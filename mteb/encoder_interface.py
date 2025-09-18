@@ -11,7 +11,7 @@ from torch.utils.data import DataLoader
 
 Corpus = Union[list[dict[str, str]], dict[str, list[str]]]
 
-
+# passage is for document
 class PromptType(str, Enum):
     query = "query"
     passage = "passage"

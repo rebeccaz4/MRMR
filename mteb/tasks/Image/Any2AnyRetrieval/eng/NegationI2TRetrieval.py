@@ -103,14 +103,13 @@ class NegationI2TRetrieval(AbsTaskAny2AnyRetrieval):
             "revision": "main",  
         },
         type="Any2AnyRetrieval",
-        category="t2t",
+        category="i2t",
         eval_splits=["test"],
         eval_langs=["eng-Latn"],
         main_score="recall_at_1",
         task_subtypes=["Image Text Retrieval"],
         dialect=[],
-        # modalities=["image", "text"],
-        modalities=["text"],
+        modalities=["image", "text"],
         sample_creation="created",
         bibtex_citation=r"""
 @misc{design_dataset2024,
@@ -120,7 +119,7 @@ class NegationI2TRetrieval(AbsTaskAny2AnyRetrieval):
   howpublished={\url{https://huggingface.co/datasets/MMB-25/design}},
 }
 """,
-        prompt={"query": "Given the image caption, retrieve the text has contradictory information to the query."},
+        prompt={"query": "Given an image caption, retrieve descriptions that have contradictory information with the image."},
         descriptive_stats={
             "n_samples": {"test":28},  # 请填入真实样本数
             "avg_character_length": {

@@ -1,6 +1,6 @@
 import os
 # Set GPU before importing any CUDA-related modules
-os.environ["CUDA_VISIBLE_DEVICES"] = "3"
+os.environ["CUDA_VISIBLE_DEVICES"] = "2"
 
 import torch
 import mteb
@@ -15,8 +15,8 @@ if torch.cuda.is_available():
 else:
     print("CUDA not available!")
 
-tasks = mteb.get_tasks(tasks=["AILACasedocs"])
-model_name = "nvidia/NV-Embed-v2"
+tasks = mteb.get_tasks(tasks=["MSCOCOI2TRetrieval"])
+model_name = "Alibaba-NLP/gme-Qwen2-VL-7B-Instruct"
 
 model = mteb.get_model(model_name=model_name)
 
@@ -32,4 +32,4 @@ encode_kwargs = {
 }
 
 evaluation = mteb.MTEB(tasks=tasks)
-results = evaluation.run(model, encode_kwargs=encode_kwargs, corpus_chunk_size=1000)
+results = evaluation.run(model, split_corpus=False, split_results=False, encode_kwargs=encode_kwargs, corpus_chunk_size=1000)

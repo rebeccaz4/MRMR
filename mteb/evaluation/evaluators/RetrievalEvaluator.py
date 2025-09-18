@@ -109,20 +109,13 @@ class DenseRetrievalExactSearch:
         **kwargs,
     ) -> dict[str, dict[str, float]]:
         print(type(queries), type(corpus))
-        
-        # queries: Dataset -> dict[str, str]
-        queries_dict = {row["id"]: row["text"] for row in queries}
-        queries = queries_dict
-        
-        # corpus: Dataset -> dict[str, dict[str, str]]
-        corpus_dict = {row["id"]: {"text": row["text"],} for row in corpus}
-        corpus = corpus_dict
-        print(type(queries), type(corpus))
-        
+                
         logger.info("Encoding Queries.")
         query_ids = list(queries.keys())
         self.results = {qid: {} for qid in query_ids}
         queries = [queries[qid] for qid in queries]  # type: ignore
+        
+        # queries 是list of str
         
         if instructions:
             queries = [f"{query} {instructions[query]}".strip() for query in queries]
@@ -143,9 +136,14 @@ class DenseRetrievalExactSearch:
         
         
         logger.info("Encoding Corpus.")
-        
+                
         if split_corpus:
             logger.info("Split-corpus mode")
+            
+            # 自动生成 candidate docs：x -> [x_1, x_2, x_3, x_4]
+            def generate_candidates(qid):
+                numeric_id = qid.split("-")[-1]
+                return [f"corpus-test-{numeric_id}_{i}" for i in range(1, 5)]
 
             # 每个 query 单独检索
             for query_itr, qid in enumerate(query_ids):
@@ -155,24 +153,35 @@ class DenseRetrievalExactSearch:
                 selected_corpus: list[dict] = []
                 candidate_ids_present: list[str] = []
 
-                # 遍历 candidate_ids，从 corpus 对应 split 中取出 item
                 for cid in candidate_ids:
-                    item = corpus.get(split, {}).get(cid)
+                    # 直接从 corpus 取出字典
+                    item = corpus.get(cid)
                     if item is None:
-                        logger.warning(f"Candidate corpus id {cid} not found for query {qid} in split {split}")
+                        logger.warning(
+                            f"Candidate corpus id {cid} not found for query {qid} in split test"
+                        )
                         continue
-                    selected_corpus.append(item)
-                    candidate_ids_present.append(cid)
 
+                    text_value = item["text"]
+                    
+                    if not isinstance(text_value, str):
+                        logger.warning(f"wrong {cid}: type={type(text_value)}")
+
+                    selected_corpus.append(text_value)
+                    candidate_ids_present.append(cid)
+                    
                 if not selected_corpus:
                     continue
-
+                
+                # encode 的内容必须是 list of str, or tuple of str!
                 # 编码这些候选文档，这里有默认不是encode-conversations
+                # 用encode的时候prompt type只有query和passage两种！
+                
                 try:
                     sub_corpus_embeddings = self.model.encode(
                         selected_corpus,
                         task_name=task_name,
-                        prompt_type=PromptType.document,
+                        prompt_type=PromptType.passage,
                         request_qid=qid,
                         **self.encode_kwargs,
                     )
@@ -180,10 +189,11 @@ class DenseRetrievalExactSearch:
                     logger.warning(f"Failed to encode candidate docs for query {qid}: {e}")
                     continue
 
-                # 取出该 query 的 embedding
-                q_emb = query_embeddings[query_itr].unsqueeze(0)  # (1, D)
-
-                # 计算相似度
+                q_emb = query_embeddings[query_itr] # (D,)
+                
+                # print(type(q_emb), type(sub_corpus_embeddings)) # <class 'numpy.ndarray'> <class 'numpy.ndarray'>
+                # print(sub_corpus_embeddings.shape) # (4, D)
+                
                 if hasattr(self.model, "similarity"):
                     similarity_scores = self.model.similarity(q_emb, sub_corpus_embeddings)
                 else:
@@ -256,7 +266,7 @@ class DenseRetrievalExactSearch:
                     sub_corpus_embeddings = self.model.encode(
                         corpus[corpus_start_idx:corpus_end_idx],  # type: ignore
                         task_name=task_name,
-                        prompt_type=PromptType.document,
+                        prompt_type=PromptType.passage, # 这里把document改成passage了，PromptType根本没有document的变量
                         request_qid=request_qid,
                         **self.encode_kwargs,
                     )
@@ -666,7 +676,6 @@ class RetrievalEvaluator(Evaluator):
             # === 新增：split_results 分类评估 ===
         split_metrics = {}
         print(split_results, queries is not None)
-        queries = {x["id"]: x for x in queries}
         print(type(queries))
         # 调用一定要记得传queries，否则即使split-results是true，也不会进入这个分支！
         if split_results and queries is not None:
