@@ -47,7 +47,7 @@ class MultimodalWrapper(Wrapper, ImageEncoder):
             MultimodalWrapper, "torch", model_name, "pip install torch"
         )
         requires_package(
-            MultimodalWrapper, "pillow", model_name, "pip install pillow"
+            MultimodalWrapper, "PIL", model_name, "pip install pillow"
         )
         
         from transformers import AutoModel, AutoTokenizer
