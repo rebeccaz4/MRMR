@@ -152,7 +152,7 @@ class E5VWrapper:
 
         instruction = Wrapper.get_instruction(task_name, prompt_type)
         self.composed_prompt = self.template.format(
-            f"{instruction}\n{}\n<image>"
+            f"{instruction}\n<sent>\n<image>"
         )
 
         if texts is not None and images is not None:
@@ -163,7 +163,7 @@ class E5VWrapper:
                             index * batch_size : (index + 1) * batch_size
                         ]
                         prompts = [
-                            self.composed_prompt.format(text) for text in batch_texts
+                            self.composed_prompt.replace("<sent>", text) for text in batch_texts
                         ]
                         inputs = self.processor(
                             prompts, batch_images, return_tensors="pt", padding=True
@@ -181,7 +181,7 @@ class E5VWrapper:
                         batch_texts = texts[i : i + batch_size]
                         batch_images = images[i : i + batch_size]
                         prompts = [
-                            self.composed_prompt.format(text) for text in batch_texts
+                            self.composed_prompt.replace("<sent>", text) for text in batch_texts
                         ]
                         inputs = self.processor(
                             prompts, batch_images, return_tensors="pt", padding=True

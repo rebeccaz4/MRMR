@@ -6,6 +6,7 @@ from functools import partial
 from mteb.encoder_interface import PromptType
 from mteb.model_meta import ModelMeta
 from mteb.models.instruct_wrapper import InstructSentenceTransformerWrapper
+from mteb.models.multimodal_wrapper import MultimodalWrapper
 
 logger = logging.getLogger(__name__)
 
@@ -137,6 +138,35 @@ NV_embed_v1 = ModelMeta(
     reference="https://huggingface.co/nvidia/NV-Embed-v1",
     similarity_fn_name="cosine",
     framework=["Sentence Transformers", "PyTorch"],
+    use_instructions=True,
+    training_datasets=nvidia_training_datasets,
+    public_training_code=None,
+    public_training_data=None,
+)
+
+MM_Embed = ModelMeta(
+    loader=partial(  # type: ignore
+        MultimodalWrapper,
+        model_name="nvidia/MM-Embed",
+        revision="main",
+        instruction_template=instruction_template,
+        trust_remote_code=True,
+        max_seq_length=4096,
+        # MM-Embed uses 4096 max length for multimodal inputs
+    ),
+    name="nvidia/MM-Embed",
+    languages=["eng-Latn"],
+    open_weights=True,
+    revision="main",
+    release_date="2024-11-05",  # based on arxiv paper date
+    n_parameters=8_180_000_000,  # 8.18B params as shown on HF page
+    memory_usage_mb=16000,  # estimated based on model size
+    embed_dim=4096,  # same as NV-Embed-v1
+    license="cc-by-nc-4.0",
+    max_tokens=4096,  # multimodal inputs use 4096 max length
+    reference="https://huggingface.co/nvidia/MM-Embed",
+    similarity_fn_name="cosine",
+    framework=["Transformers", "PyTorch"],
     use_instructions=True,
     training_datasets=nvidia_training_datasets,
     public_training_code=None,

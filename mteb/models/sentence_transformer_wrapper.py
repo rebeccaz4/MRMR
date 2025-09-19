@@ -50,6 +50,7 @@ class SentenceTransformerWrapper(Wrapper):
                 logger.warning(
                     "Model prompts are not in the expected format. Ignoring them."
                 )
+
         elif model_prompts is not None and hasattr(self.model, "prompts"):
             logger.info(f"Model prompts will be overwritten with {model_prompts}")
             self.model.prompts = model_prompts
@@ -94,12 +95,13 @@ class SentenceTransformerWrapper(Wrapper):
             prompt_name = self.get_prompt_name(
                 self.model_prompts, task_name, prompt_type
             )
+        
         if prompt_name:
             logger.info(
                 f"Using prompt_name={prompt_name} for task={task_name} prompt_type={prompt_type}"
             )
         else:
-            logger.info(
+            logger.warning(
                 f"No model prompts found for task={task_name} prompt_type={prompt_type}"
             )
         logger.info(f"Encoding {len(sentences)} sentences.")

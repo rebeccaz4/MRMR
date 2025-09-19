@@ -64,7 +64,6 @@ def instruct_wrapper(
             **kwargs: Any,
         ) -> np.ndarray:
             instruction = self.get_instruction(task_name, prompt_type)
-
             if self.instruction_template:
                 instruction = self.format_instruction(instruction, prompt_type)
 

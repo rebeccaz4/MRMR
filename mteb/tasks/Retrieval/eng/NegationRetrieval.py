@@ -121,7 +121,7 @@ class NegationRetrieval(AbsTaskRetrieval):
 }
 """,
         prompt={
-            "query": "Given an image caption, retrieve descriptions that have contradictory information with the image."
+            "query": "Given an image caption, retrieve descriptions that have contradictory information with the image caption."
         },
     )
     

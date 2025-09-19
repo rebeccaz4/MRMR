@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datasets import load_dataset
+from datasets import load_dataset, concatenate_datasets
 import json
 
 from mteb.abstasks.Image.AbsTaskAny2AnyRetrieval import AbsTaskAny2AnyRetrieval
@@ -63,7 +63,15 @@ def _load_data(
             cache_dir=cache_dir,
             revision=revision,
         )
-
+        
+        pin_p_ds = load_dataset(
+            path,
+            "pin_p",
+            split=split,
+            cache_dir=cache_dir,
+            revision=revision,
+        )      
+        
         def map_corpus(x):
             new_text = x["text"]
             if text_only and "<image>" in new_text:
@@ -76,8 +84,9 @@ def _load_data(
                 "image": x["image"] if not text_only else None,
                 "modality": x["modality"] if not text_only else "text",
             }
-
-        corpus[split] = corpus_ds.map(map_corpus)
+        
+        combined_ds = concatenate_datasets([corpus_ds, pin_p_ds])
+        corpus[split] = combined_ds.map(map_corpus)
 
         # ---- qrels ----
         qrels_ds = load_dataset(
@@ -89,8 +98,8 @@ def _load_data(
         )
         qrels[split] = {}
         for row in qrels_ds:
-            qid = f"query-{split}-{row['query-id']}"
-            did = f"corpus-{split}-{row['corpus-id']}"
+            qid = f"query-{split}-{row['query_id']}"
+            did = f"corpus-{split}-{row['corpus_id']}"
             qrels[split].setdefault(qid, {})[did] = int(row["score"])
 
     return corpus, query, qrels
@@ -143,7 +152,7 @@ class KnowledgeAny2AnyRetrieval(AbsTaskAny2AnyRetrieval):
         self.corpus, self.queries, self.relevant_docs = _load_data(
             path=self.metadata_dict["dataset"]["path"],
             splits=self.metadata_dict["eval_splits"],
-            cache_dir=kwargs.get("cache_dir", None),
+            cache_dir="/data/siyue/",
             revision=self.metadata_dict["dataset"]["revision"],
         )
         self.data_loaded = True

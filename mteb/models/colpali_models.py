@@ -14,6 +14,7 @@ from mteb.requires_package import (
     requires_image_dependencies,
     requires_package,
 )
+from mteb.models.wrapper import Wrapper
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +45,7 @@ class ColPaliEngineWrapper:
         self.mdl.eval()
 
         # Load processor
+        # processor_class是ColPaliProcessor
         self.processor = processor_class.from_pretrained(model_name)
 
     def encode(self, sentences, **kwargs):
@@ -100,7 +102,7 @@ class ColPaliEngineWrapper:
                 all_embeds.extend(outs.cpu().to(torch.float32))
 
         padded = torch.nn.utils.rnn.pad_sequence(
-            all_embeds, batch_first=True, padding_value=0
+            all_embeds, batch_first=False, padding_value=0
         )
         return padded
 

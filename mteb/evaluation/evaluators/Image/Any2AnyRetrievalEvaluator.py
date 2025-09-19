@@ -197,6 +197,7 @@ class Any2AnyDenseRetrievalExactSearch:
 
                 # 将 embedding 添加到总列表
                 all_query_embeddings.append(emb)
+                print(emb.shape)
 
             except Exception as e:
                 logger.warning(f"Failed to encode item at index {idx}: {e}")

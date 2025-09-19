@@ -5,7 +5,10 @@ from functools import partial
 from mteb.model_meta import ModelMeta, sentence_transformers_loader
 from mteb.models.e5_instruct import E5_MISTRAL_TRAINING_DATA
 
-model_prompts = {"query": "Represent this sentence for searching relevant passages: "}
+
+# model_prompts = {"query": "Represent this sentence for searching relevant passages: "}
+model_prompts = {"query": "Given an image caption, retrieve descriptions that have contradictory information with the image caption."}
+
 model_prompts_zh = {"query": "为这个句子生成表示以用于检索相关文章："}
 
 bge_m3_training_data = {
@@ -636,6 +639,7 @@ bge_m3 = ModelMeta(
         sentence_transformers_loader,
         model_name="BAAI/bge-m3",
         revision="5617a9f61b028005a4858fdac845db406aefb181",
+        model_prompts=model_prompts,
     ),
     name="BAAI/bge-m3",
     languages=bgem3_languages,
@@ -650,7 +654,7 @@ bge_m3 = ModelMeta(
     reference="https://huggingface.co/BAAI/bge-m3",
     similarity_fn_name="cosine",
     framework=["Sentence Transformers", "PyTorch"],
-    use_instructions=False,
+    use_instructions=True,
     public_training_code=None,
     public_training_data="https://huggingface.co/datasets/cfli/bge-full-data",
     training_datasets=bge_m3_training_data,
@@ -757,6 +761,7 @@ bge_en_icl = ModelMeta(
         sentence_transformers_loader,
         model_name="BAAI/bge-en-icl",
         revision="971c7e1445cc86656ca0bd85ed770b8675a40bb5",
+        model_prompts=model_prompts,
     ),
     name="BAAI/bge-en-icl",
     languages=[
@@ -773,7 +778,8 @@ bge_en_icl = ModelMeta(
     reference="https://huggingface.co/BAAI/bge-en-icl",
     similarity_fn_name="cosine",
     framework=["Sentence Transformers", "PyTorch"],
-    use_instructions=False,
+    use_instructions=True,
+
     public_training_code="https://github.com/FlagOpen/FlagEmbedding",
     public_training_data="https://huggingface.co/datasets/cfli/bge-full-data",
     training_datasets={

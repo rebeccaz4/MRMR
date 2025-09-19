@@ -11,6 +11,7 @@ from tqdm import tqdm
 from mteb.encoder_interface import PromptType
 from mteb.model_meta import ModelMeta
 from mteb.requires_package import requires_image_dependencies
+from mteb.models.wrapper import Wrapper
 
 
 def evaclip_loader(**kwargs):
@@ -69,10 +70,10 @@ def evaclip_loader(**kwargs):
             **kwargs: Any,
         ):
             all_text_embeddings = []
-
+            instruction = Wrapper.get_instruction(task_name, prompt_type)
             with torch.no_grad(), torch.cuda.amp.autocast():
                 for i in tqdm(range(0, len(texts), batch_size)):
-                    batch_texts = texts[i : i + batch_size]
+                    batch_texts = [f"{instruction}\n{text}" for text in texts[i : i + batch_size]]
                     inputs = self.tokenizer(batch_texts)
                     text_outputs = self.model.encode_text(inputs.to(self.device))
                     all_text_embeddings.append(text_outputs.cpu())
@@ -90,7 +91,9 @@ def evaclip_loader(**kwargs):
             **kwargs: Any,
         ):
             import torchvision.transforms.functional as F
-
+            
+            instruction = Wrapper.get_instruction(task_name, prompt_type)
+            
             all_image_embeddings = []
             if isinstance(images, DataLoader):
                 with torch.no_grad(), torch.cuda.amp.autocast():

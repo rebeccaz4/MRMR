@@ -11,6 +11,10 @@ from tqdm import tqdm
 from mteb.encoder_interface import PromptType
 from mteb.model_meta import ModelMeta
 from mteb.requires_package import requires_image_dependencies
+from mteb.models.wrapper import Wrapper
+
+from torchvision import transforms
+
 
 
 def vista_loader(**kwargs):
@@ -139,6 +143,7 @@ def vista_loader(**kwargs):
             **kwargs: Any,
         ):
             if images is not None:
+                print(type(images))
                 if isinstance(images, list):
                     if not tensors:
                         images = [
@@ -148,9 +153,10 @@ def vista_loader(**kwargs):
                             for img in images
                         ]
                     else:
+                        to_pil = transforms.ToPILImage()
                         images = [
-                            self.preprocess_val(self.tensor_to_image(image))
-                            for image in images
+                                    self.preprocess_val(to_pil(image))
+                                    for image in images
                         ]
                     images = torch.stack(images)
                 if texts is not None:
@@ -183,8 +189,10 @@ def vista_loader(**kwargs):
             **kwargs: Any,
         ):
             all_text_embeddings = []
+            instruction = Wrapper.get_instruction(task_name, prompt_type)
+            
             for i in tqdm(range(0, len(texts), batch_size)):
-                batch_texts = texts[i : i + batch_size]
+                batch_texts = [f"{instruction}\n{text}" for text in texts[i : i + batch_size]]
                 with torch.no_grad():
                     batch_embeddings = self.encode(texts=batch_texts)
                 all_text_embeddings.append(batch_embeddings.cpu())
@@ -200,17 +208,18 @@ def vista_loader(**kwargs):
             **kwargs: Any,
         ):
             all_image_embeddings = []
+            instruction = Wrapper.get_instruction(task_name, prompt_type)
 
             if isinstance(images, DataLoader):
                 with torch.no_grad():
                     for batch in tqdm(images):
-                        batch_embeddings = self.encode(images=batch, tensors=True)
+                        batch_embeddings = self.encode(images=batch, texts=[instruction]*len(batch), tensors=True)
                         all_image_embeddings.append(batch_embeddings.cpu())
             else:
                 with torch.no_grad():
                     for i in tqdm(range(0, len(images), batch_size)):
                         batch_images = images[i : i + batch_size]
-                        batch_embeddings = self.encode(images=batch_images)
+                        batch_embeddings = self.encode(images=batch_images, texts=[instruction]*len(batch_images))
                         all_image_embeddings.append(batch_embeddings.cpu())
             return torch.cat(all_image_embeddings, dim=0)
 
@@ -224,13 +233,12 @@ def vista_loader(**kwargs):
             **kwargs: Any,
         ):
             all_embeddings = []
+            instruction = Wrapper.get_instruction(task_name, prompt_type)
 
             if isinstance(images, DataLoader):
                 with torch.no_grad():
                     for index, batch_images in enumerate(tqdm(images)):
-                        batch_texts = texts[
-                            index * batch_size : (index + 1) * batch_size
-                        ]
+                        batch_texts = [f"{instruction}\n{text}" for text in texts[index * batch_size : (index + 1) * batch_size]]
                         batch_embeddings = self.encode(
                             images=batch_images, texts=batch_texts, tensors=True
                         )
@@ -239,7 +247,7 @@ def vista_loader(**kwargs):
                 assert len(texts) == len(images)
                 with torch.no_grad():
                     for i in tqdm(range(0, len(texts), batch_size)):
-                        batch_texts = texts[i : i + batch_size]
+                        batch_texts = [f"{instruction}\n{text}" for text in texts[i : i + batch_size]]
                         batch_images = images[i : i + batch_size]
                         batch_embeddings = self.encode(
                             images=batch_images, texts=batch_texts

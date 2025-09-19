@@ -79,6 +79,11 @@ class VLM2VecWrapper:
             model = base_model.to(torch.bfloat16)
 
         model.eval()
+
+        print(device)
+        # device = "cuda:2"
+        # print(f"!! MANUAL VLM2VecWrapper: moving model to {device}")
+        
         model.to(device)
         self.mdl = model
 

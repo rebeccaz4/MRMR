@@ -7,13 +7,13 @@ from mteb.abstasks.TaskMetadata import TaskMetadata
 
 import json
 
-# query是image，corpus是text
+# query是image，corpus是text, text_vision表示query用caption、corpus用vision
 def _load_data(
     path: str,
     splits: list[str],
     cache_dir: str | None = None,
     revision: str | None = None,
-    text_only: bool = False,
+    text_vision: bool = False,
 ):
     corpus = {}
     query = {}
@@ -21,7 +21,7 @@ def _load_data(
 
     # 如果需要纯文本模式，则直接在函数里读取 captions.json
     captions_map = {}
-    if text_only:
+    if text_vision:
         caption_path = "/home/siyue/Projects/mmb_pipeline/AllCaption/all_captions_negation.json"
         with open(caption_path, "r", encoding="utf-8") as f:
             cap_list = json.load(f)
@@ -43,15 +43,15 @@ def _load_data(
 
         def map_query(x):
             new_text = x["text"]
-            if text_only:
+            if text_vision:
                 cap_key = f"query-{x['id']}"
                 if cap_key in captions_map:
                     new_text = f"<{captions_map[cap_key]}>"
             return {
                 "id": f"query-{split}-{x['id']}",
                 "text": new_text,
-                "image": None if text_only else x["image"],
-                "modality": "text" if text_only else x["modality"],
+                "image": None if text_vision else x["image"],
+                "modality": "text" if text_vision else x["modality"],
             }
 
         query[split] = query_ds.map(map_query)
@@ -68,9 +68,9 @@ def _load_data(
         def map_corpus(x):
              return {
                         "id": f"corpus-{split}-{x['id']}",   # 假设 corpus 的 id 字段叫 "id"
-                        "text": x["text"],
-                        "image": x["image"],                 # 保留 image 字段
-                        "modality": x["modality"],           # 原样保留
+                        "text": None if text_vision else x["text"],
+                        "image": x["vision"] if text_vision else x["image"],                 # 保留 image 字段
+                        "modality": "image" if text_vision else x["modality"],           # 原样保留
                     } 
 
         corpus[split] = corpus_ds.map(map_corpus)
@@ -137,14 +137,14 @@ class NegationI2TRetrieval(AbsTaskAny2AnyRetrieval):
 
 
     def load_data(self, **kwargs):
-        text_only = kwargs.get("text_only", False)
-        print(text_only)
+        text_vision = kwargs.get("text_vision", False)
+        print(text_vision)
         self.corpus, self.queries, self.relevant_docs = _load_data(
             path=self.metadata_dict["dataset"]["path"],
             splits=self.metadata_dict["eval_splits"],
             cache_dir=kwargs.get("cache_dir", None),
             revision=self.metadata_dict["dataset"]["revision"],
-            text_only=text_only,
+            text_vision=text_vision,
         )
         self.data_loaded = True
         
