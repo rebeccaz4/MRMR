@@ -18,6 +18,7 @@ from mteb.models.wrapper import Wrapper
 
 logger = logging.getLogger(__name__)
 
+# 改prompt的地方：/home/siyue/Projects/mm-mteb/colpali_engine/colpali_engine/models/paligemma/colpali/processing_colpali.py
 
 class ColPaliEngineWrapper:
     """Base wrapper for `colpali_engine` models. Adapted from https://github.com/illuin-tech/colpali/tree/bebcdd6715dba42624acd8d7f7222a16a5daf848/colpali_engine/models"""

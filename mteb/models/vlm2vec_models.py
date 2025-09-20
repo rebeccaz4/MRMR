@@ -148,7 +148,7 @@ class VLM2VecWrapper:
                             text,
                             [F.to_pil_image(b.to("cpu"))],
                             return_tensors="pt",
-                            max_length=256,
+                            max_length=2048,
                             truncation=True,
                         )
                         inputs = {k: v.to(self.device) for k, v in inputs.items()}
@@ -185,7 +185,7 @@ class VLM2VecWrapper:
                             text,
                             [b],
                             return_tensors="pt",
-                            max_length=256,
+                            max_length=2048,
                             truncation=True,
                         )
                         inputs = {k: v.to(self.device) for k, v in inputs.items()}
@@ -236,7 +236,7 @@ class VLM2VecWrapper:
                         text,
                         None,
                         return_tensors="pt",
-                        max_length=256,
+                        max_length=2048,
                         truncation=True,
                     )
                     inputs = {k: v.to(self.device) for k, v in inputs.items()}
@@ -312,7 +312,7 @@ class VLM2VecWrapper:
                             f"{instruction} {text} <|image_1|>",
                             [F.to_pil_image(b.to("cpu"))],
                             return_tensors="pt",
-                            max_length=256,
+                            max_length=2048,
                             truncation=True,
                         )
                         inputs = {k: v.to(self.device) for k, v in inputs.items()}
@@ -349,7 +349,7 @@ class VLM2VecWrapper:
                             f"{instruction} {text} <|image_1|>",
                             [b],
                             return_tensors="pt",
-                            max_length=256,
+                            max_length=2048,
                             truncation=True,
                         )
                         inputs = {k: v.to(self.device) for k, v in inputs.items()}

@@ -377,9 +377,11 @@ class AbsTaskRetrieval(AbsTask):
             qrels_save_path = (
                 output_folder / f"{self.metadata.name}_{hf_subset}_predictions.json"
             )
-
+            
+            print(f"Saving predictions to: {qrels_save_path}")
             with open(qrels_save_path, "w") as f:
                 json.dump(results, f)
+            print(f"Successfully saved predictions file: {qrels_save_path.name}")
                 
         split_results = kwargs.get("split_results", False)
         category_map = kwargs.get("category_map", None)
@@ -441,8 +443,10 @@ class AbsTaskRetrieval(AbsTask):
             errors_save_path = (
                 output_folder / f"{self.metadata.name}_{hf_subset}_errors.json"
             )
+            print(f"Saving errors to: {errors_save_path}")
             with open(errors_save_path, "w") as f:
                 json.dump(errors, f)
+            print(f"Successfully saved errors file: {errors_save_path.name}")
 
         return scores
 

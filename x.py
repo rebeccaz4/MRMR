@@ -12,6 +12,7 @@ import os
 # model_name = "Salesforce/blip2-opt-2.7b" # not working
 # model_name = "microsoft/LLM2CLIP-Openai-L-14-224"
 # model_name = "google/siglip-large-patch16-384"
+# model_name = "QuanSun/EVA02-CLIP-L-14"
 model_name = "nvidia/MM-Embed"
 
 # # Debug: Check GPU availability

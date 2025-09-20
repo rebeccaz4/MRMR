@@ -414,6 +414,7 @@ class MTEB:
         Returns:
             A list of TaskResult objects, one for each task evaluated.
         """
+        # print("evaluation run"),这里有的
         if "batch_size" in kwargs:
             logger.warning(
                 "The `batch_size` argument is deprecated and will be removed in the next release. "
@@ -442,14 +443,16 @@ class MTEB:
         ## Disable co2_tracker for API models
         if "API" in meta.framework:
             co2_tracker = False
+            
 
         if output_path:
             self._save_model_metadata(meta, output_path)
 
         # Run selected tasks
         logger.info(f"\n\n## Evaluating {len(self.tasks)} tasks:")
-
+       
         if verbosity > 0:
+            print("verbosity > 0")
             self.print_selected_tasks()
 
         evaluation_results = []
@@ -459,7 +462,7 @@ class MTEB:
 
         # To evaluate missing splits, we keep track of the task name and the corresponding splits.
         self.last_evaluated_splits = {}
-
+        
         while len(self.tasks) > 0:
             task = self.tasks[0]
             logger.info(
@@ -495,14 +498,13 @@ class MTEB:
                 )
                 del self.tasks[0]  # empty memory
                 continue
-
             # NOTE: skip evaluation if the model does not support all of the task's modalities.
             # If the model covers more than the task's modalities, evaluation will still be run.
             sorted_task_modalities = sorted(task.metadata.modalities)
             if meta.modalities is not None and any(
                 m not in meta.modalities for m in sorted_task_modalities
             ):
-                logger.info(
+                logger.warning(
                     f"{meta.name} only supports {meta.modalities}, but the task modalities are {sorted_task_modalities}."
                 )
                 del self.tasks[0]  # empty memory
@@ -526,7 +528,7 @@ class MTEB:
                 task_subsets,
                 eval_subsets,
             )
-
+            print(output_path)
             if output_path:
                 save_path = output_path / f"{task.metadata.name}{task.save_suffix}.json"
                 if save_path.exists():
@@ -564,7 +566,7 @@ class MTEB:
                 if existing_results is not None:
                     evaluation_results.append(existing_results)
                 else:
-                    logger.info(
+                    logger.warning(
                         f"No splits to evaluate for {task.metadata.name}. Skipping evaluation."
                     )
                 self.last_evaluated_splits[task.metadata.name] = []
@@ -597,7 +599,7 @@ class MTEB:
                         info["whole_split_missing"] or overwrite_results
                     ) and task_subsets is None:
                         subsets_to_run = ["default"]
-
+                    
                     if co2_tracker:
                         try:
                             from codecarbon import EmissionsTracker
@@ -632,7 +634,7 @@ class MTEB:
                             **kwargs,
                         )
 
-                    logger.info(
+                    logger.warning(
                         f"Evaluation for {task.metadata_dict['name']} on {split} took {tock - tick:.2f} seconds"
                     )
                     evaluation_time += tock - tick
@@ -698,6 +700,7 @@ class MTEB:
     @staticmethod
     def create_model_meta(model: Encoder) -> ModelMeta:
         if hasattr(model, "mteb_model_meta"):
+            
             meta = model.mteb_model_meta  # type: ignore
         else:
             try:

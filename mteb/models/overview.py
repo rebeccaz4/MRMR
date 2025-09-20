@@ -210,6 +210,7 @@ def get_model_metas(
         zero_shot_on: A list of tasks on which the model is zero-shot. If None this filter is ignored.
     """
     res = []
+    print(model_names)
     model_names = set(model_names) if model_names is not None else None
     languages = set(languages) if languages is not None else None
     frameworks = set(frameworks) if frameworks is not None else None
@@ -257,10 +258,13 @@ def get_model(model_name: str, revision: str | None = None, **kwargs: Any) -> En
     Returns:
         A model object
     """
+    # print("get model")
     meta = get_model_meta(model_name, revision)
+    # print(meta)
     model = meta.load_model(**kwargs)
 
     # If revision not available in the modelmeta, try to extract it from sentence-transformers
+    # print(isinstance(model, SentenceTransformer)),这里是false因为模型没有sentencetransformer
     if meta.revision is None and isinstance(model, SentenceTransformer):
         _meta = model_meta_from_sentence_transformers(model)
         meta.revision = _meta.revision if _meta.revision else meta.revision

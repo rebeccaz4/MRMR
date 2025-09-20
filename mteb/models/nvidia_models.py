@@ -171,4 +171,5 @@ MM_Embed = ModelMeta(
     training_datasets=nvidia_training_datasets,
     public_training_code=None,
     public_training_data=None,
+    modalities=['image', 'text'],
 )

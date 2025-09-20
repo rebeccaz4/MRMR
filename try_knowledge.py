@@ -13,16 +13,27 @@ category_map = {
     }
 
 tasks = mteb.get_tasks(tasks=["KnowledgeAny2AnyRetrieval"])
-model_name = "TIGER-Lab/VLM2Vec-LoRA"
+# model_name = "TIGER-Lab/VLM2Vec-Full"
+model_name = "Alibaba-NLP/gme-Qwen2-VL-7B-Instruct"
 
 model = mteb.get_model(model_name=model_name)
 
 encode_kwargs = {
-    "batch_size": 8,  # Smallest possible batch size
+    "batch_size": 1,
     "show_progress_bar": True,
     "convert_to_tensor": True,
 }
 
 
 evaluation = mteb.MTEB(tasks=tasks)
-results = evaluation.run(model, encode_kwargs=encode_kwargs, split_corpus=False, split_results=True, category_map=category_map, overwrite_results=True, save_predictions=True)
+results = evaluation.run(
+    model, 
+    encode_kwargs=encode_kwargs, 
+    split_corpus=False, 
+    split_results=True, 
+    category_map=category_map, 
+    text_vision=False,
+    overwrite_results=True, 
+    ave_predictions=True,
+    output_folder="/home/siyue/Projects/exp_results"
+    )

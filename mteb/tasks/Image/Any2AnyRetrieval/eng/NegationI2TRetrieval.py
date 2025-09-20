@@ -139,6 +139,16 @@ class NegationI2TRetrieval(AbsTaskAny2AnyRetrieval):
     def load_data(self, **kwargs):
         text_vision = kwargs.get("text_vision", False)
         print(text_vision)
+        
+        if text_vision:
+            self.metadata.prompt["query"] = (
+                "Given an image caption, retrieve descriptions that have contradictory information with the image caption."
+            )
+        else:
+            self.metadata.prompt["query"] = (
+                "Given an image, retrieve descriptions that have contradictory information with the image."
+            )
+        print(self.metadata.prompt["query"])
         self.corpus, self.queries, self.relevant_docs = _load_data(
             path=self.metadata_dict["dataset"]["path"],
             splits=self.metadata_dict["eval_splits"],

@@ -118,6 +118,7 @@ class Any2AnyDenseRetrievalExactSearch:
             return_sorted: bool = False,
             **kwargs,
         ) -> dict[str, dict[str, float]]:
+        
         if hasattr(self.model, "similarity"):
             score_function = self.model.similarity
             logger.info("Scoring Function: from model")
@@ -131,7 +132,7 @@ class Any2AnyDenseRetrievalExactSearch:
             )
             score_function = self.score_functions[score_function]
        
-        logger.info("Encoding Queries.")
+        logger.warning("Encoding Queries.")
         queries = list(queries)  # 确保 queries 是 list of dict
         query_ids = [item["id"] for item in queries]
         self.results = {qid: {} for qid in query_ids}
@@ -197,7 +198,7 @@ class Any2AnyDenseRetrievalExactSearch:
 
                 # 将 embedding 添加到总列表
                 all_query_embeddings.append(emb)
-                print(emb.shape)
+                # print(emb.shape)
 
             except Exception as e:
                 logger.warning(f"Failed to encode item at index {idx}: {e}")
@@ -746,7 +747,7 @@ class Any2AnyRetrievalEvaluator(Evaluator):
         
         if not self.retriever:
             raise ValueError("Model/Technique has not been provided!")
-
+        
         return self.retriever.search(
             corpus,
             queries,

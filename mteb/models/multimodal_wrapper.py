@@ -79,107 +79,74 @@ class MultimodalWrapper(Wrapper, ImageEncoder):
             # Default max length for MM-Embed
             self.max_seq_length = 4096
 
+
+
     def encode(
         self,
-        sentences: Sequence[str],
-        *,
-        task_name: str,
-        prompt_type: PromptType | None = None,
-        **kwargs: Any,
-    ) -> np.ndarray:
-        """Encode text sentences using the multimodal model.
-        
-        Args:
-            sentences: List of text sentences to encode
-            task_name: Task name for instruction formatting
-            prompt_type: Type of prompt (query or passage)
-            **kwargs: Additional encoding arguments
-            
-        Returns:
-            Numpy array of embeddings
+        queries: list[dict],
+        instruction: str,
+        is_query: bool,
+        max_length: int | None = 4096,
+        batch_size: int = 16,
+        show_progress_bar: bool = False,
+        convert_to_tensor: bool = False,
+        **kwargs
+    ) -> torch.Tensor:
         """
-        # Format sentences with instructions if needed
-        instruction = self.get_task_instruction(task_name, prompt_type)
-        
-        # Prepare queries in the format expected by MM-Embed
-        queries = [{'txt': sent} for sent in sentences]
-        
-        logger.info(f"Using instruction: '{instruction}' for task: '{task_name}'")
-        
-        # Use the model's encode method for text-only encoding
-        with torch.no_grad():
-            embeddings = self.model.encode(
-                queries,
-                is_query=(prompt_type == PromptType.query),
-                instruction=instruction if instruction else None,
-                max_length=self.max_seq_length,
-                **kwargs
-            )
-            
-            # Extract the hidden states from the model output
-            if isinstance(embeddings, dict) and 'hidden_states' in embeddings:
-                embeddings = embeddings['hidden_states']
-            
-            # Convert to numpy if needed
-            if isinstance(embeddings, torch.Tensor):
-                embeddings = embeddings.cpu().numpy()
-                
-        return embeddings
+        Encode a list of queries (text, image, or multimodal) into embeddings with batching.
 
-    def encode_multimodal(
-        self,
-        queries: Sequence[dict[str, Any]],
-        passages: Sequence[dict[str, Any]] | None = None,
-        instruction: str | None = None,
-        max_length: int | None = None,
-        **kwargs: Any,
-    ) -> dict[str, np.ndarray]:
-        """Encode multimodal queries and passages.
-        
         Args:
-            queries: List of dictionaries containing 'txt' and optionally 'img' keys
-            passages: List of dictionaries containing 'txt' and optionally 'img' keys
-            instruction: Instruction for query encoding
+            queries: List of dicts, e.g., {'txt': ..., 'img': ...} or just {'txt': ...} / {'img': ...}
+            is_query: Whether this is a query (vs. corpus)
             max_length: Maximum sequence length
-            **kwargs: Additional encoding arguments
-            
+            batch_size: Number of samples per batch
+            show_progress_bar: Whether to show a progress bar
+            convert_to_tensor: Whether to return a torch.Tensor (True) or numpy.ndarray (False)
+            **kwargs: Additional arguments for model.encode
         Returns:
-            Dictionary with 'query_embeddings' and optionally 'passage_embeddings'
+            torch.Tensor or np.ndarray of embeddings
         """
+        all_embeddings = []
         max_length = max_length or self.max_seq_length
-        
-        with torch.no_grad():
-            # Encode queries
-            query_embeddings = self.model.encode(
-                queries,
-                is_query=True,
-                instruction=instruction,
-                max_length=max_length,
-                **kwargs
-            )
-            
-            result = {'query_embeddings': query_embeddings['hidden_states']}
-            
-            # Encode passages if provided
-            if passages is not None:
-                passage_embeddings = self.model.encode(
-                    passages,
-                    is_query=False,
+        print("batch_size", batch_size)
+        # 如果需要显示进度条
+        iterator = range(0, len(queries), batch_size)
+        if show_progress_bar:
+            from tqdm import tqdm
+            iterator = tqdm(iterator, desc="Encoding batches")
+
+        for i in iterator:
+            batch = queries[i:i + batch_size]
+
+            with torch.no_grad():
+                batch_embeddings = self.model.encode(
+                    batch,
+                    is_query=is_query,
                     max_length=max_length,
+                    instruction=instruction,
                     **kwargs
                 )
-                result['passage_embeddings'] = passage_embeddings['hidden_states']
-            
-            # Convert to numpy arrays
-            for key, value in result.items():
-                if isinstance(value, torch.Tensor):
-                    result[key] = value.cpu().numpy()
-                    
-        return result
+
+                if isinstance(batch_embeddings, dict) and 'hidden_states' in batch_embeddings:
+                    batch_embeddings = batch_embeddings['hidden_states']
+
+                # 转成 numpy
+                if isinstance(batch_embeddings, torch.Tensor):
+                    batch_embeddings = batch_embeddings.cpu().numpy()
+
+                all_embeddings.append(batch_embeddings)
+
+        all_embeddings = np.concatenate(all_embeddings, axis=0)
+
+        if convert_to_tensor:
+            return torch.from_numpy(all_embeddings)
+        return all_embeddings
 
     def get_image_embeddings(
         self,
         images: list[Image.Image] | DataLoader,
+        task_name: str,
+        prompt_type: PromptType | None = None,
         **kwargs,
     ) -> np.ndarray:
         """Get embeddings for images only.
@@ -192,36 +159,33 @@ class MultimodalWrapper(Wrapper, ImageEncoder):
             Numpy array of image embeddings
         """
         # Convert images to the format expected by MM-Embed
+        
         if isinstance(images, list):
             queries = [{'img': img} for img in images]
         else:
             # Handle DataLoader case
             queries = []
             for batch in images:
+                print(type(batch))
                 if isinstance(batch, dict) and 'img' in batch:
                     queries.extend([{'img': img} for img in batch['img']])
                 else:
                     queries.extend([{'img': img} for img in batch])
+                    
+        instruction = Wrapper.get_instruction(task_name=task_name, prompt_type=prompt_type)
         
-        with torch.no_grad():
-            embeddings = self.model.encode(
-                queries,
-                is_query=False,
-                max_length=self.max_seq_length,
-                **kwargs
-            )
-            
-            if isinstance(embeddings, dict) and 'hidden_states' in embeddings:
-                embeddings = embeddings['hidden_states']
-            
-            if isinstance(embeddings, torch.Tensor):
-                embeddings = embeddings.cpu().numpy()
-                
-        return embeddings
+        is_query = True if prompt_type==PromptType.query else False
+        print("is_query", is_query)
+        
+        return self.encode(queries, is_query=is_query, max_length=self.max_seq_length, instruction=instruction, **kwargs)
+
+
 
     def get_text_embeddings(
         self,
         texts: list[str],
+        task_name: str,
+        prompt_type: PromptType | None = None,
         **kwargs,
     ) -> np.ndarray:
         """Get embeddings for text only.
@@ -234,25 +198,17 @@ class MultimodalWrapper(Wrapper, ImageEncoder):
             Numpy array of text embeddings
         """
         queries = [{'txt': text} for text in texts]
+        instruction = Wrapper.get_instruction(task_name=task_name, prompt_type=prompt_type)
         
-        with torch.no_grad():
-            embeddings = self.model.encode(
-                queries,
-                is_query=False,
-                max_length=self.max_seq_length,
-                **kwargs
-            )
-            
-            if isinstance(embeddings, dict) and 'hidden_states' in embeddings:
-                embeddings = embeddings['hidden_states']
-            
-            if isinstance(embeddings, torch.Tensor):
-                embeddings = embeddings.cpu().numpy()
-                
-        return embeddings
+        is_query = True if prompt_type==PromptType.query else False
+        print("is_query", is_query)
+        
+        return self.encode(queries, is_query=is_query, max_length=self.max_seq_length, instruction=instruction, **kwargs)
 
     def get_fused_embeddings(
         self,
+        task_name: str,
+        prompt_type: PromptType | None = None,
         texts: list[str] | None = None,
         images: list[Image.Image] | DataLoader | None = None,
         **kwargs: Any,
@@ -267,6 +223,11 @@ class MultimodalWrapper(Wrapper, ImageEncoder):
         Returns:
             Numpy array of fused embeddings
         """
+        instruction = Wrapper.get_instruction(task_name=task_name, prompt_type=prompt_type)
+        
+        is_query = True if prompt_type==PromptType.query else False
+        print("is_query", is_query)
+        
         if texts is None and images is None:
             raise ValueError("Either texts or images must be provided")
         
@@ -288,19 +249,5 @@ class MultimodalWrapper(Wrapper, ImageEncoder):
                         queries.extend([{'img': img} for img in batch['img']])
                     else:
                         queries.extend([{'img': img} for img in batch])
-        
-        with torch.no_grad():
-            embeddings = self.model.encode(
-                queries,
-                is_query=False,
-                max_length=self.max_seq_length,
-                **kwargs
-            )
-            
-            if isinstance(embeddings, dict) and 'hidden_states' in embeddings:
-                embeddings = embeddings['hidden_states']
-            
-            if isinstance(embeddings, torch.Tensor):
-                embeddings = embeddings.cpu().numpy()
-                
-        return embeddings
+                      
+        return self.encode(queries, is_query=is_query, max_length=self.max_seq_length, instruction=instruction, **kwargs)

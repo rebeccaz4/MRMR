@@ -1,5 +1,5 @@
 import os
-os.environ["CUDA_VISIBLE_DEVICES"] = "3"  #在跑nv-embed-v2的时候不能限制环境
+os.environ["CUDA_VISIBLE_DEVICES"] = "1"  #在跑nv-embed-v2的时候不能限制环境
 
 import mteb
 
@@ -18,10 +18,11 @@ tasks = mteb.get_tasks(tasks=["NegationI2TRetrieval"])
 
 # mutimodal model
 # model_name = "TIGER-Lab/VLM2Vec-LoRA"
-# model_name = "Alibaba-NLP/gme-Qwen2-VL-7B-Instruct"
+model_name = "Alibaba-NLP/gme-Qwen2-VL-7B-Instruct"
 # model_name = "royokong/e5-v"
 # model_name = "BAAI/bge-visualized-m3"
-model_name = "vidore/colpali-v1.3"
+# model_name = "vidore/colpali-v1.3"
+# model_name = "nvidia/MM-Embed"
 
 # text model
 # model_name = "Qwen/Qwen3-Embedding-8B"
@@ -40,4 +41,4 @@ encode_kwargs = {
 
 evaluation = mteb.MTEB(tasks=tasks)
 # results = evaluation.run(model, encode_kwargs=encode_kwargs, split_corpus=True, split_results=False, overwrite_results=True, save_predictions=True)
-results = evaluation.run(model, encode_kwargs=encode_kwargs, split_corpus=True, split_results=False, text_vision=True, overwrite_results=True, save_predictions=True)
+results = evaluation.run(model, encode_kwargs=encode_kwargs, split_corpus=True, split_results=False, text_vision=False, overwrite_results=True, save_predictions=True)
