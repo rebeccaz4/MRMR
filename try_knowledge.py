@@ -13,8 +13,8 @@ category_map = {
     }
 
 tasks = mteb.get_tasks(tasks=["KnowledgeAny2AnyRetrieval"])
-# model_name = "TIGER-Lab/VLM2Vec-Full"
-model_name = "Alibaba-NLP/gme-Qwen2-VL-7B-Instruct"
+model_name = "TIGER-Lab/VLM2Vec-Full"
+# model_name = "Alibaba-NLP/gme-Qwen2-VL-7B-Instruct"
 
 model = mteb.get_model(model_name=model_name)
 
