@@ -55,7 +55,7 @@ class BaseVisualRetrieverProcessor(ABC):
         self,
         texts: Optional[List[str]] = None,
         queries: Optional[List[str]] = None,
-        max_length: int = 50,
+        max_length: int = 4096,
         suffix: Optional[str] = None,
     ) -> Union[BatchFeature, BatchEncoding]:
         """
@@ -85,7 +85,6 @@ class BaseVisualRetrieverProcessor(ABC):
 
         # Add the query prefix and suffix to each text
         texts = [self.query_prefix + text + suffix for text in texts]
-        print("done")
         return self.process_texts(texts=texts)
 
     @abstractmethod
@@ -128,7 +127,7 @@ class BaseVisualRetrieverProcessor(ABC):
     def score_multi_vector(
         qs: Union[torch.Tensor, List[torch.Tensor]],
         ps: Union[torch.Tensor, List[torch.Tensor]],
-        batch_size: int = 128,
+        batch_size: int = 8,
         device: Optional[Union[str, torch.device]] = None,
     ) -> torch.Tensor:
         """
@@ -186,7 +185,7 @@ class BaseVisualRetrieverProcessor(ABC):
         qs: Union[torch.Tensor, List[torch.Tensor]],
         plaid_index: "search.FastPlaid",
         k: int = 10,
-        batch_size: int = 128,
+        batch_size: int = 16,
         device: Optional[Union[str, torch.device]] = None,
     ) -> torch.Tensor:
         """

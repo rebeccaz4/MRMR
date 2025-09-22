@@ -8,18 +8,20 @@ from mteb.abstasks.TaskMetadata import TaskMetadata
 import json
 
 # query是image，corpus是text, text_vision表示query用caption、corpus用vision
+# when is_clip is true, add instruction into text.
 def _load_data(
     path: str,
     splits: list[str],
+    instruction: str = None,
     cache_dir: str | None = None,
     revision: str | None = None,
     text_vision: bool = False,
+    is_clip: bool = False,
 ):
     corpus = {}
     query = {}
     qrels = {}
 
-    # 如果需要纯文本模式，则直接在函数里读取 captions.json
     captions_map = {}
     if text_vision:
         caption_path = "/home/siyue/Projects/mmb_pipeline/AllCaption/all_captions_negation.json"
@@ -40,18 +42,24 @@ def _load_data(
             cache_dir=cache_dir,
             revision=revision,
         )
-
+  
         def map_query(x):
             new_text = x["text"]
             if text_vision:
+                x["modality"] = "text"
                 cap_key = f"query-{x['id']}"
                 if cap_key in captions_map:
                     new_text = f"<{captions_map[cap_key]}>"
+            if is_clip:
+                new_text = f"{instruction}"
+                x["moadlity"] = "image,text"
+                print(new_text)
+                
             return {
                 "id": f"query-{split}-{x['id']}",
                 "text": new_text,
                 "image": None if text_vision else x["image"],
-                "modality": "text" if text_vision else x["modality"],
+                "modality": x["modality"],
             }
 
         query[split] = query_ds.map(map_query)
@@ -139,6 +147,8 @@ class NegationI2TRetrieval(AbsTaskAny2AnyRetrieval):
     def load_data(self, **kwargs):
         text_vision = kwargs.get("text_vision", False)
         print(text_vision)
+        is_clip = kwargs.get("is_clip", False)
+        print(is_clip)
         
         if text_vision:
             self.metadata.prompt["query"] = (
@@ -149,12 +159,15 @@ class NegationI2TRetrieval(AbsTaskAny2AnyRetrieval):
                 "Given an image, retrieve descriptions that have contradictory information with the image."
             )
         print(self.metadata.prompt["query"])
+        
         self.corpus, self.queries, self.relevant_docs = _load_data(
             path=self.metadata_dict["dataset"]["path"],
             splits=self.metadata_dict["eval_splits"],
             cache_dir=kwargs.get("cache_dir", None),
             revision=self.metadata_dict["dataset"]["revision"],
             text_vision=text_vision,
+            is_clip=is_clip,
+            instruction=self.metadata.prompt["query"],
         )
         self.data_loaded = True
         

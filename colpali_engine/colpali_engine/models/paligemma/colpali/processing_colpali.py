@@ -35,15 +35,14 @@ class ColPaliProcessor(BaseVisualRetrieverProcessor, PaliGemmaProcessor):
         Args:
             images: List of PIL images.
         """
-        print("done")
         images = [image.convert("RGB") for image in images]
-        print(self.visual_prompt_prefix)
+
         batch_doc = self(
             text=[self.visual_prompt_prefix] * len(images),
             images=images,
             return_tensors="pt",
             padding="max_length",
-            max_length=2048
+            max_length=4096,
         )
         return batch_doc
 
@@ -57,7 +56,8 @@ class ColPaliProcessor(BaseVisualRetrieverProcessor, PaliGemmaProcessor):
         Returns:
             Union[BatchFeature, BatchEncoding]: Processed texts.
         """
-        instruction = "Given an image, retrieve descriptions that have contradictory information with the image."
+        # instruction = "Given an image, retrieve descriptions that have contradictory information with the image."
+        instruction = "Given a traffic case description, retrieve the driving rule documents that it violates."
         return self.tokenizer(
             [f"{self.tokenizer.bos_token}{instruction}\n{text}" for text in texts],
             text_pair=None,

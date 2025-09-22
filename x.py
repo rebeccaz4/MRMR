@@ -12,8 +12,8 @@ import os
 # model_name = "Salesforce/blip2-opt-2.7b" # not working
 # model_name = "microsoft/LLM2CLIP-Openai-L-14-224"
 # model_name = "google/siglip-large-patch16-384"
-# model_name = "QuanSun/EVA02-CLIP-L-14"
-model_name = "nvidia/MM-Embed"
+model_name = "QuanSun/EVA02-CLIP-L-14"
+# model_name = "nvidia/MM-Embed"
 
 # # Debug: Check GPU availability
 # print(f"CUDA available: {torch.cuda.is_available()}")
@@ -30,10 +30,17 @@ encode_kwargs = {
     "convert_to_tensor": True,
 }
 
-model = mteb.get_model(model_name, device="cuda:1") # if the model is not implemented in MTEB it will be eq. to SentenceTransformer(model_name)
+model = mteb.get_model(model_name, device="cuda:3") # if the model is not implemented in MTEB it will be eq. to SentenceTransformer(model_name)
 # tasks = mteb.get_tasks(tasks=["NegationI2TRetrieval"])
 tasks = mteb.get_tasks(tasks=["CUB200I2IRetrieval"])
 # tasks = mteb.get_tasks(tasks=["VisualNewsI2TRetrieval"])
 
 evaluation = mteb.MTEB(tasks=tasks)
-results = evaluation.run(model, encode_kwargs=encode_kwargs, split_corpus=True, split_results=False, text_vision=True, overwrite_results=True, save_predictions=True)
+results = evaluation.run(model, 
+                         encode_kwargs=encode_kwargs, 
+                         split_corpus=True, 
+                         split_results=False, 
+                         text_vision=False, 
+                         overwrite_results=True, 
+                         save_predictions=True,
+                         output_folder="/home/siyue/Projects/test")

@@ -70,10 +70,10 @@ def evaclip_loader(**kwargs):
             **kwargs: Any,
         ):
             all_text_embeddings = []
-            instruction = Wrapper.get_instruction(task_name, prompt_type)
+
             with torch.no_grad(), torch.cuda.amp.autocast():
                 for i in tqdm(range(0, len(texts), batch_size)):
-                    batch_texts = [f"{instruction}\n{text}" for text in texts[i : i + batch_size]]
+                    batch_texts = texts[i : i + batch_size]
                     inputs = self.tokenizer(batch_texts)
                     text_outputs = self.model.encode_text(inputs.to(self.device))
                     all_text_embeddings.append(text_outputs.cpu())
@@ -91,9 +91,7 @@ def evaclip_loader(**kwargs):
             **kwargs: Any,
         ):
             import torchvision.transforms.functional as F
-            
-            instruction = Wrapper.get_instruction(task_name, prompt_type)
-            
+
             all_image_embeddings = []
             if isinstance(images, DataLoader):
                 with torch.no_grad(), torch.cuda.amp.autocast():
@@ -217,7 +215,7 @@ EVA02_CLIP_L_14 = ModelMeta(
     modalities=["image", "text"],
     n_parameters=428_000_000,
     memory_usage_mb=1633,
-    max_tokens=77,
+    max_tokens=4096,
     embed_dim=768,
     license="mit",
     open_weights=True,

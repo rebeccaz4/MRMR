@@ -393,7 +393,28 @@ class Any2AnyDenseRetrievalExactSearch:
 
             sub_corpus_embeddings = torch.cat(sub_corpus_embeddings, dim=0)
 
-            cos_scores = score_function(query_embeddings, sub_corpus_embeddings)
+            # cos_scores = score_function(query_embeddings, sub_corpus_embeddings)
+            
+            from tqdm import tqdm
+
+            def score_function_chunked(q_embeds, c_embeds, batch_size=1):
+                """
+                按 query 维度分批算相似度矩阵，避免一次性占用过多显存，并显示进度条。
+                """
+                all_scores = []
+                total = q_embeds.size(0)
+                # tqdm 负责显示进度条
+                for start in tqdm(range(0, total, batch_size), desc="Scoring", ncols=80):
+                    end = start + batch_size
+                    q_batch = q_embeds[start:end]
+                    scores = score_function(q_batch, c_embeds)
+                    all_scores.append(scores)
+                return torch.cat(all_scores, dim=0)
+
+
+            # 使用：
+            cos_scores = score_function_chunked(query_embeddings, sub_corpus_embeddings, batch_size=256)
+
             cos_scores[torch.isnan(cos_scores)] = -1
 
             cos_scores_top_k_values, cos_scores_top_k_idx = torch.topk(
@@ -969,20 +990,56 @@ class Any2AnyRetrievalEvaluator(Evaluator):
         metric_scores: dict[str, list[float]],
     ) -> dict[str, float]:
         """Computes normalized Area Under the Curve on a set of evaluated instances as presented in the paper https://arxiv.org/abs/2402.12997"""
-        all_sim_scores = [list(results[qid].values()) for qid in list(results.keys())]
+        # Filter out queries with empty similarity scores (not relevant to any documents)
+        qids = list(results.keys())
+        filtered_qids = []
+        filtered_sim_scores = []
+        
+        for qid in qids:
+            sim_scores = list(results[qid].values())
+            if len(sim_scores) > 0:
+                filtered_qids.append(qid)
+                filtered_sim_scores.append(sim_scores)
+            else:
+                print(f"INFO: Skipping qid {qid} - no similarity scores (not relevant to any documents)")
+        
+        print(f"INFO: Filtered {len(qids) - len(filtered_qids)} queries with empty scores out of {len(qids)} total queries")
+        
+        # Handle case where all queries are filtered out
+        if not filtered_sim_scores:
+            print("WARNING: All queries have empty similarity scores. Returning empty nAUC results.")
+            return {}
+        
         all_conf_scores = [
-            confidence_scores(sim_scores) for sim_scores in all_sim_scores
+            confidence_scores(sim_scores) for sim_scores in filtered_sim_scores
         ]
-        conf_fcts = list(all_conf_scores[0].keys())
+        conf_fcts = list(all_conf_scores[0].keys()) if all_conf_scores else []
         all_conf_scores = {
             fct: np.array([x[fct] for x in all_conf_scores]) for fct in conf_fcts
         }
-        metric_scores = {k: np.array(v) for k, v in metric_scores.items()}
+        
+        # Filter metric_scores to match filtered queries
+        # Assuming metric_scores values are lists aligned with the original qids order
+        original_qids = list(results.keys())
+        filtered_indices = [i for i, qid in enumerate(original_qids) if qid in filtered_qids]
+        
+        filtered_metric_scores = {}
+        for metric_name, scores in metric_scores.items():
+            if isinstance(scores, list) and len(scores) == len(original_qids):
+                filtered_metric_scores[metric_name] = [scores[i] for i in filtered_indices]
+            else:
+                # If scores don't align with qids, keep as is
+                filtered_metric_scores[metric_name] = scores
+        
+        filtered_metric_scores = {k: np.array(v) for k, v in filtered_metric_scores.items()}
         naucs = {}
 
-        for metric_name, scores in metric_scores.items():
+        for metric_name, scores in filtered_metric_scores.items():
             for fct, conf_scores in all_conf_scores.items():
-                naucs[f"nAUC_{metric_name}_{fct}"] = nAUC(conf_scores, scores)
+                if len(conf_scores) == len(scores):
+                    naucs[f"nAUC_{metric_name}_{fct}"] = nAUC(conf_scores, scores)
+                else:
+                    print(f"WARNING: Length mismatch for {metric_name}: conf_scores={len(conf_scores)}, scores={len(scores)}")
 
         return naucs
 

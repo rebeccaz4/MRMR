@@ -13,6 +13,7 @@ from transformers import AutoConfig, AutoModel, AutoTokenizer, CLIPImageProcesso
 from mteb.encoder_interface import PromptType
 from mteb.model_meta import ModelMeta
 from mteb.requires_package import requires_image_dependencies, requires_package
+from mteb.models.wrapper import Wrapper
 
 MODEL2PROCESSOR = {
     "microsoft/LLM2CLIP-Openai-L-14-336": "openai/clip-vit-large-patch14-336",
@@ -82,8 +83,8 @@ def llm2clip_loader(**kwargs):
                 llm_model,
                 tokenizer,
                 pooling_mode="mean",
-                max_length=512,
-                doc_max_length=512,
+                max_length=4096,
+                doc_max_length=4096,
             )
 
         def get_text_embeddings(
@@ -201,6 +202,61 @@ def llm2clip_loader(**kwargs):
 
     return LLM2CLIPWrapper(**kwargs)
 
+                
+
+
+    #     def calculate_probs(self, text_embeddings, image_embeddings):
+    #         text_embeddings = text_embeddings / text_embeddings.norm(
+    #             dim=-1, keepdim=True
+    #         )
+    #         image_embeddings = image_embeddings / image_embeddings.norm(
+    #             dim=-1, keepdim=True
+    #         )
+    #         logits = torch.matmul(image_embeddings, text_embeddings.T)
+    #         probs = (logits * 100).softmax(dim=-1)
+    #         return probs
+
+    #     def get_fused_embeddings(
+    #         self,
+    #         texts: list[str] = None,
+    #         images: list[Image.Image] | DataLoader = None,
+    #         task_name: str | None = None,
+    #         prompt_type: PromptType | None = None,           
+    #         fusion_mode="sum",
+    #         **kwargs: Any,
+    #     ):
+    #         if texts is None and images is None:
+    #             raise ValueError("Either texts or images must be provided")
+            
+    #         text_embeddings = None
+    #         image_embeddings = None
+            
+    #         if texts is not None:
+    #             text_embeddings = self.get_text_embeddings(texts, **kwargs)
+
+    #         if images is not None:
+    #             image_embeddings = self.get_image_embeddings(images, prompt_type=PromptType.passage, **kwargs)
+
+    #         if text_embeddings is not None and image_embeddings is not None:
+    #             if len(text_embeddings) != len(image_embeddings):
+    #                 raise ValueError(
+    #                     "The number of texts and images must have the same length"
+    #                 )
+    #             if fusion_mode == "sum":
+    #                 fused_embeddings = text_embeddings + image_embeddings
+    #             else:
+    #                 # to do: add other fusion mode
+    #                 raise ValueError(
+    #                     f"fusion mode {fusion_mode} hasn't been implemented"
+    #                 )
+    #             return fused_embeddings
+    #         elif text_embeddings is not None:
+    #             return text_embeddings
+    #         elif image_embeddings is not None:
+    #             return image_embeddings
+
+    # return LLM2CLIPWrapper(**kwargs)
+
 
 llm2clip_training_sets = {
     # CC3M
@@ -245,7 +301,7 @@ llm2clip_openai_l_14_224 = ModelMeta(
     revision="6b8a11a94ff380fa220dfefe73ac9293d2677575",
     release_date="2024-11-07",
     modalities=["image", "text"],
-    n_parameters=578_000_000,
+    n_parameters=578_000_000,   
     memory_usage_mb=None,
     max_tokens=None,
     embed_dim=1280,

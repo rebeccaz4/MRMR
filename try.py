@@ -32,4 +32,8 @@ encode_kwargs = {
 }
 
 evaluation = mteb.MTEB(tasks=tasks)
-results = evaluation.run(model, split_corpus=False, split_results=False, encode_kwargs=encode_kwargs, corpus_chunk_size=1000)
+results = evaluation.run(model, 
+                         split_corpus=False, 
+                         split_results=False,
+                        encode_kwargs=encode_kwargs, 
+                        corpus_chunk_size=1000)

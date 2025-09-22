@@ -103,7 +103,7 @@ class ColPaliEngineWrapper:
                 all_embeds.extend(outs.cpu().to(torch.float32))
 
         padded = torch.nn.utils.rnn.pad_sequence(
-            all_embeds, batch_first=False, padding_value=0
+            all_embeds, batch_first=True, padding_value=0
         )
         return padded
 

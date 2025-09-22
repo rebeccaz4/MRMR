@@ -12,9 +12,11 @@ import json
 def _load_data(
     path: str,
     splits: list[str],
+    instruction: str = None,
     cache_dir: str | None = None,
     revision: str | None = None,
-    text_only: bool = False,
+    text_vision: bool = False,
+    is_clip: bool = False,
 ):
     corpus = {}
     query = {}
@@ -22,17 +24,14 @@ def _load_data(
 
     # 如果需要纯文本模式，则直接在函数里读取 captions.json
     captions_map = {}
-    if text_only:
+    if text_vision:
         caption_path = "/home/siyue/Projects/mmb_pipeline/AllCaption/all_captions_traffic.json"
         with open(caption_path, "r", encoding="utf-8") as f:
             cap_list = json.load(f)
         for item in cap_list:
             subset = item["subset"]          # "corpus" 或 "query"
             item_id = item["item_id"]
-            if subset == "corpus":
-                # 多图 captions
-                captions_map[f"{subset}-{item_id}"] = item.get("captions", {})
-            else:
+            if subset == "query":
                 # query 保持原来方式
                 cap = item["captions"]["image"]["caption"]
                 captions_map[f"{subset}-{item_id}"] = cap
@@ -49,15 +48,17 @@ def _load_data(
 
         def map_query(x):
             new_text = x["text"]
-            if text_only and "<image>" in new_text:
+            if text_vision and "<image>" in new_text:
                 cap_key = f"query-{x['id']}"
                 if cap_key in captions_map:
                     new_text = new_text.replace("<image>", f"<{captions_map[cap_key]}>")
+            if is_clip:
+                new_text = f"{instruction}\n{new_text}"
             return {
                 "id": f"query-{split}-{x['id']}",
                 "text": new_text,
-                "image": None if text_only else x["image"],
-                "modality": "text" if text_only else x["modality"],
+                "image": None if text_vision else x["image"],
+                "modality": "text" if text_vision else x["modality"],
             }
 
         query[split] = query_ds.map(map_query)
@@ -72,20 +73,11 @@ def _load_data(
         )
 
         def map_corpus(x):
-            new_text = x["text"]
-            if text_only and "<image" in new_text:
-                cap_key = f"corpus-{x['id']}"
-                if cap_key in captions_map:
-                    # captions_map[cap_key] 是一个字典，包含 "image 1", "image 2" 等
-                    for img_name, img_info in captions_map[cap_key].items():
-                        placeholder = f"<{img_name}>"  # e.g., <image 1>
-                        caption_text = img_info["caption"]
-                        new_text = new_text.replace(placeholder, f"<{caption_text}>")
             return {
                 "id": f"corpus-{split}-{x['id']}",
-                "text": new_text,
-                "image": None if text_only else x["image"],
-                "modality": "text" if text_only else x["modality"],
+                "text": None if text_vision else x["text"],
+                "image": x["vision"] if text_vision else x["image"],
+                "modality": "image" if text_vision else x["modality"],
             }
 
         corpus[split] = corpus_ds.map(map_corpus)
@@ -103,6 +95,11 @@ def _load_data(
             qid = f"query-{split}-{row['query-id']}"
             did = f"corpus-{split}-{row['corpus-id']}"
             qrels[split].setdefault(qid, {})[did] = int(row["score"])
+            
+    print(
+        f"[{split}] query 中 id 数量: {len(set(query[split]['id']))}, "
+        f"qrels 中 query-id 数量: {len(set(qrels[split].keys()))}"
+    )
 
     return corpus, query, qrels
 
@@ -118,13 +115,13 @@ class TrafficIT2AnyRetrieval(AbsTaskAny2AnyRetrieval):
             "revision": "main",  
         },
         type="Any2AnyRetrieval",
-        category="t2t",
+        category="it2it",
         eval_splits=["test"],
         eval_langs=["eng-Latn"],
         main_score="ndcg_at_10",
         task_subtypes=["Image Text Retrieval"],
         dialect=[],
-        modalities=["text"],
+        modalities=["image", "text"],
         sample_creation="created",
         bibtex_citation=r"""
 @misc{design_dataset2024,
@@ -134,7 +131,7 @@ class TrafficIT2AnyRetrieval(AbsTaskAny2AnyRetrieval):
   howpublished={\url{https://huggingface.co/datasets/MMB-25/design}},
 }
 """,
-        prompt={"query": "Find the contradiction."},
+        prompt={"query": "Given a traffic case, retrieve the driving rule documents that it violates."},
         descriptive_stats={
             "n_samples": {"test":28},  # 请填入真实样本数
             "avg_character_length": {
@@ -152,14 +149,29 @@ class TrafficIT2AnyRetrieval(AbsTaskAny2AnyRetrieval):
 
 
     def load_data(self, **kwargs):
-        text_only = kwargs.get("text_only", False)
-        print(text_only)
+        text_vision = kwargs.get("text_vision", False)
+        print(text_vision)
+        
+        is_clip = kwargs.get("is_clip", False)
+        print(is_clip)
+        
+        if text_vision:
+            self.metadata.prompt["query"] = (
+                "Given a traffic case description, retrieve the driving rule documents that it violates."
+            )
+        else:
+            self.metadata.prompt["query"] = (
+                "Given a traffic case, retrieve the driving rule documents that it violates."
+            )
+            
         self.corpus, self.queries, self.relevant_docs = _load_data(
             path=self.metadata_dict["dataset"]["path"],
             splits=self.metadata_dict["eval_splits"],
             cache_dir=kwargs.get("cache_dir", None),
             revision=self.metadata_dict["dataset"]["revision"],
-            text_only=text_only,
+            text_vision=text_vision,
+            is_clip=is_clip,
+            instruction=self.metadata.prompt["query"],
         )
         self.data_loaded = True
         

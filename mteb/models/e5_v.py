@@ -141,6 +141,8 @@ class E5VWrapper:
         self,
         texts: list[str] = None,
         images: list[Image.Image] = None,
+        task_name: str | None = None,
+        prompt_type: PromptType | None = None,
         batch_size: int = 8,
         **kwargs: Any,
     ):
@@ -151,9 +153,22 @@ class E5VWrapper:
         kwargs.update(batch_size=batch_size)
 
         instruction = Wrapper.get_instruction(task_name, prompt_type)
+
+        """   for traffic 单图text里已经有<image>，与模板冲突
+        if prompt_type == PromptType.query:
+            self.composed_prompt = self.template.format(
+                f"{instruction}\n<sent>\n"
+            )
+        else:
+            self.composed_prompt = self.template.format(
+                f"{instruction}\n<sent>\n<image>"
+            )
+        """
+
         self.composed_prompt = self.template.format(
             f"{instruction}\n<sent>\n<image>"
         )
+
 
         if texts is not None and images is not None:
             with torch.no_grad():

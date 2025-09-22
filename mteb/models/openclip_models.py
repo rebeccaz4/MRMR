@@ -56,6 +56,7 @@ def openclip_loader(**kwargs):
             task_name: str | None = None,
             prompt_type: PromptType | None = None,
             batch_size: int = 32,
+            **kwargs: Any,
         ):
             all_text_embeddings = []
 
@@ -277,7 +278,7 @@ CLIP_ViT_g_14_laion2B_s34B_b88K = ModelMeta(
     modalities=["image", "text"],
     n_parameters=1_367_000_000,
     memory_usage_mb=5215,
-    max_tokens=77,
+    max_tokens=4096,
     embed_dim=1024,
     license="mit",
     open_weights=True,

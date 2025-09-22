@@ -1,6 +1,4 @@
 from .DesignIT2AnyRetrieval import DesignIT2AnyRetrieval
-from .PatentIT2ITRetrieval import PatentIT2ITRetrieval
-from .PatentIT2TRetrieval import PatentIT2TRetrieval
 from .NegationI2TRetrieval import NegationI2TRetrieval
 from .KnowledgeAny2AnyRetrieval import KnowledgeAny2AnyRetrieval
 from .TrafficIT2AnyRetrieval import TrafficIT2AnyRetrieval

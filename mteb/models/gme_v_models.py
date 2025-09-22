@@ -25,7 +25,7 @@ class Encoder(torch.nn.Module):
         self,
         base,
         processor,
-        max_length=1800,
+        max_length=4096,
         normalize=True,
     ) -> None:
         super().__init__()
@@ -134,8 +134,8 @@ class GmeQwen2VL(Wrapper):
         model_path: str | None = None,
         device: str = "cuda" if torch.cuda.is_available() else "cpu",
         min_image_tokens=4,
-        max_image_tokens=1280,
-        max_length=1800,
+        max_image_tokens=4096,
+        max_length=4096,
         **kwargs,
     ) -> None:
         model_name = model_path or model_name

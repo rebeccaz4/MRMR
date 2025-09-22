@@ -354,6 +354,10 @@ def confidence_scores(sim_scores: list[float]) -> dict[str, float]:
             - `std`: Standard deviation of similarity scores
             - `diff1`: Difference between highest and second highest similarity scores
     """
+    # Note: Empty sim_scores should be filtered out at the caller level
+    if len(sim_scores) == 0:
+        raise ValueError("sim_scores cannot be empty - should be filtered out before calling this function")
+    
     sim_scores_sorted = sorted(sim_scores)[::-1]
 
     cs_max = sim_scores_sorted[0]

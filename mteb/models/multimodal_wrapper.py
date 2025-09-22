@@ -236,7 +236,7 @@ class MultimodalWrapper(Wrapper, ImageEncoder):
         if texts is not None and images is not None:
             if len(texts) != len(images):
                 raise ValueError("Number of texts and images must match")
-            queries = [{'txt': text, 'img': img} for text, img in zip(texts, images)]
+            queries = [{'txt': text.replace('<image>', '<image 1>'), 'img': img} for text, img in zip(texts, images)]
         elif texts is not None:
             queries = [{'txt': text} for text in texts]
         else:  # images is not None

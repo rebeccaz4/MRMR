@@ -2,17 +2,57 @@ from __future__ import annotations
 
 from datasets import load_dataset, concatenate_datasets
 import json
+from PIL import Image
 
 from mteb.abstasks.Image.AbsTaskAny2AnyRetrieval import AbsTaskAny2AnyRetrieval
 from mteb.abstasks.TaskMetadata import TaskMetadata
 
 
+def resize_image(image, max_size=2000):
+    """
+    Resize image proportionally if width or height is larger than max_size.
+    
+    Args:
+        image: PIL Image object
+        max_size: Maximum allowed dimension (width or height)
+    
+    Returns:
+        PIL Image object (resized if necessary)
+    """
+    if image is None:
+        return None
+    
+    # Get current dimensions
+    width, height = image.size
+    
+    # Check if resizing is needed
+    if width <= max_size and height <= max_size:
+        return image
+    
+    # Calculate scaling factor
+    if width > height:
+        scale_factor = max_size / width
+    else:
+        scale_factor = max_size / height
+    
+    # Calculate new dimensions
+    new_width = int(width * scale_factor)
+    new_height = int(height * scale_factor)
+    
+    # Resize the image
+    resized_image = image.resize((new_width, new_height), Image.Resampling.LANCZOS)
+    
+    return resized_image
+
+
 def _load_data(
     path: str,
     splits: list[str],
+    instruction: str = None,
     cache_dir: str | None = None,
     revision: str | None = None,
     text_vision: bool = False,
+    is_clip: bool = False,
 ):
     from datasets import concatenate_datasets
 
@@ -31,76 +71,73 @@ def _load_data(
             item_id = item["item_id"]
             for img_key, img_info in item["captions"].items():
                 cap = img_info["caption"]
-                captions_map[f"{subset}-{item_id}-{img_key}"] = cap  # key 加上 img_key
+                captions_map[f"{subset}-{item_id}-{img_key}"] = cap
+
 
     for split in splits:
         # ---- query ----
         query_ds = load_dataset(
-            path,
-            "query",
-            split=split,
-            cache_dir=cache_dir,
-            revision=revision,
+            path, "query", split=split,
+            cache_dir=cache_dir, revision=revision,
         )
 
         def map_query(x):
             new_text = x["text"]
             if text_vision:
-                # 遍历 captions_map 中属于当前 query 的 captions
                 for key, cap in captions_map.items():
-                    # key 格式: "query-{item_id}-{img_key}"
                     if key.startswith(f"query-{x['id']}-"):
-                        img_key = key.split("-")[-1]  # 取 img_key，例如 "image_1"
-                        placeholder = f"<{img_key.replace('_', ' ')}>"  # "<image 1>"
+                        img_key = key.split("-")[-1]
+                        placeholder = f"<{img_key.replace('_', ' ')}>"
                         if placeholder in new_text:
                             new_text = new_text.replace(placeholder, f"<{cap}>")
+            if is_clip:
+                new_text = f"{instruction}\n{new_text}"
+            # Resize query image if needed
+            query_image = None if text_vision else resize_image(x["image"])
+            
             return {
                 "id": f"query-{split}-{x['id']}",
                 "text": new_text,
-                "image": None if text_vision else x["image"],
+                "image": query_image,
                 "modality": "text" if text_vision else x["modality"],
+                "category": x["category"],
             }
 
         query[split] = query_ds.map(map_query)
 
         # ---- corpus ----
-        corpus_ds = load_dataset(
-            path,
-            "corpus",
-            split=split,
-            cache_dir=cache_dir,
-            revision=revision,
-        )
-        
-        pin_p_ds = load_dataset(
-            path,
-            "pin_p",
-            split=split,
-            cache_dir=cache_dir,
-            revision=revision,
-        )
+        corpus_ds = load_dataset(path, "corpus", split=split,
+                                 cache_dir=cache_dir, revision=revision)
+
+        pin_p_ds = load_dataset(path, "pin_p", split=split,
+                                cache_dir=cache_dir, revision=revision)
+
 
         def map_corpus(x):
+            # Resize the image if needed
+            image_to_use = x["vision"] if text_vision else x["image"]
+            resized_image = resize_image(image_to_use)
+            
             return {
                 "id": f"corpus-{split}-{x['id']}",
                 "text": None if text_vision else x["text"],
-                "image": x["vision"] if text_vision else x["image"],
+                "image": resized_image,
                 "modality": "image" if text_vision else x["modality"],
             }
 
-        combined_ds = concatenate_datasets([corpus_ds, pin_p_ds])
-        # combined_ds = concatenate_datasets([corpus_ds])
+        # Apply mapping to both datasets to include image resizing
+        corpus_ds_mapped = corpus_ds.map(map_corpus)
+        pin_p_ds_mapped = pin_p_ds.map(map_corpus)
 
-        corpus[split] = combined_ds.map(map_corpus)
+        combined_ds = concatenate_datasets([corpus_ds_mapped, pin_p_ds_mapped])
+        # debug only use corpus, not pin_p
+        # combined_ds = concatenate_datasets([corpus_ds_mapped,])
+
+        corpus[split] = combined_ds
 
         # ---- qrels ----
-        qrels_ds = load_dataset(
-            path,
-            "qrels",
-            split=split,
-            cache_dir=cache_dir,
-            revision=revision,
-        )
+        qrels_ds = load_dataset(path, "qrels", split=split,
+                                cache_dir=cache_dir, revision=revision)
         qrels[split] = {}
         for row in qrels_ds:
             qid = f"query-{split}-{row['query_id']}"
@@ -108,6 +145,7 @@ def _load_data(
             qrels[split].setdefault(qid, {})[did] = int(row["score"])
 
     return corpus, query, qrels
+
 
 
 
@@ -157,12 +195,18 @@ class KnowledgeAny2AnyRetrieval(AbsTaskAny2AnyRetrieval):
     def load_data(self, **kwargs):
         text_vision = kwargs.get("text_vision", False)
         print(text_vision)
+        
+        is_clip = kwargs.get("is_clip", False)
+        print(is_clip)
+
         self.corpus, self.queries, self.relevant_docs = _load_data(
             path=self.metadata_dict["dataset"]["path"],
             splits=self.metadata_dict["eval_splits"],
             cache_dir="/data/siyue/",
             revision=self.metadata_dict["dataset"]["revision"],
             text_vision=text_vision,
+            is_clip=is_clip,
+            instruction=self.metadata.prompt["query"],
         )
         
         # # ============================================================================

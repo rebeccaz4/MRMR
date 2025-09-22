@@ -153,3 +153,5 @@ mteb/leaderboard/__cached_results.json
 # gradio
 .gradio/
 
+visualized_base_en_V1.5.pth
+visualized_m3.pth

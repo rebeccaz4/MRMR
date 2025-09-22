@@ -216,22 +216,26 @@ class OpsMMEmbeddingWrapper(Wrapper):
         *,
         task_name: str | None = None,
         prompt_type: PromptType | None = None,
+        instruction: str | None = None,
         batch_size: int = 32,
         **kwargs: Any,
     ) -> np.ndarray:
         """Get embeddings for text inputs."""
+        if instruction is None:
+            instruction = Wrapper.get_instruction(task_name=task_name, prompt_type=prompt_type)
+        is_query = prompt_type == PromptType.query
         all_embeddings = []
-        
         for i in range(0, len(texts), batch_size):
             batch_texts = texts[i:i + batch_size]
-            
-            # Format texts with instruction template
             input_texts = []
             for text in batch_texts:
-                msg = f"<|im_start|>system\n{self.default_instruction}<|im_end|>\n<|im_start|>user\n{text}<|im_end|>\n<|im_start|>assistant\n<|endoftext|>"
+                if is_query and instruction:
+                    # Official logic: just concatenate instruction and text
+                    msg = f"{instruction}\n{text}"
+                else:
+                    # Default: chat template
+                    msg = f"<|im_start|>system\n{instruction}<|im_end|>\n<|im_start|>user\n{text}<|im_end|>\n<|im_start|>assistant\n<|endoftext|>"
                 input_texts.append(msg)
-            
-            # Process texts
             inputs = self.processor(
                 text=input_texts,
                 padding=True,
@@ -240,10 +244,8 @@ class OpsMMEmbeddingWrapper(Wrapper):
                 return_tensors="pt"
             )
             inputs = {k: v.to(self.device) for k, v in inputs.items()}
-            
             batch_embeddings = self._encode_input(inputs)
             all_embeddings.append(batch_embeddings.cpu().float().numpy())
-        
         return np.vstack(all_embeddings)
 
     def get_image_embeddings(
@@ -252,10 +254,14 @@ class OpsMMEmbeddingWrapper(Wrapper):
         *,
         task_name: str | None = None,
         prompt_type: PromptType | None = None,
+        instruction: str | None = None,
         batch_size: int = 32,
         **kwargs: Any,
     ) -> np.ndarray:
         """Get embeddings for image inputs."""
+        if instruction is None:
+            instruction = Wrapper.get_instruction(task_name=task_name, prompt_type=prompt_type)
+        is_query = prompt_type == PromptType.query
         if isinstance(images, DataLoader):
             # Convert DataLoader to list of images
             image_list = []
@@ -265,26 +271,20 @@ class OpsMMEmbeddingWrapper(Wrapper):
                 else:
                     image_list.extend(batch)
             images = image_list
-        
         all_embeddings = []
-        
         for i in range(0, len(images), batch_size):
             batch_images = images[i:i + batch_size]
-            
             # Process images
             processed_images = []
             input_texts = []
-            
             for image in batch_images:
                 if not isinstance(image, self._Image.Image):
                     image = self._fetch_image(image)
                 processed_images.append(image)
-                
                 # Create input text with image token
                 input_str = "<|vision_start|><|image_pad|><|vision_end|>"
-                msg = f"<|im_start|>system\n{self.default_instruction}<|im_end|>\n<|im_start|>user\n{input_str}<|im_end|>\n<|im_start|>assistant\n<|endoftext|>"
+                msg = f"<|im_start|>system\n{instruction}<|im_end|>\n<|im_start|>user\n{input_str}<|im_end|>\n<|im_start|>assistant\n<|endoftext|>"
                 input_texts.append(msg)
-            
             inputs = self.processor(
                 text=input_texts,
                 images=processed_images,
@@ -294,10 +294,8 @@ class OpsMMEmbeddingWrapper(Wrapper):
                 return_tensors="pt"
             )
             inputs = {k: v.to(self.device) for k, v in inputs.items()}
-            
             batch_embeddings = self._encode_input(inputs)
             all_embeddings.append(batch_embeddings.cpu().float().numpy())
-        
         return np.vstack(all_embeddings)
 
     def get_fused_embeddings(
@@ -307,13 +305,16 @@ class OpsMMEmbeddingWrapper(Wrapper):
         *,
         task_name: str | None = None,
         prompt_type: PromptType | None = None,
+        instruction: str | None = None,
         batch_size: int = 32,
         **kwargs: Any,
     ) -> np.ndarray:
         """Get embeddings for combined text and image inputs."""
+        if instruction is None:
+            instruction = Wrapper.get_instruction(task_name=task_name, prompt_type=prompt_type)
+        is_query = prompt_type == PromptType.query
         if texts is None and images is None:
             raise ValueError("Either texts or images must be provided")
-        
         # Convert DataLoader to list if needed
         if isinstance(images, DataLoader):
             image_list = []
@@ -323,55 +324,41 @@ class OpsMMEmbeddingWrapper(Wrapper):
                 else:
                     image_list.extend(batch)
             images = image_list
-        
         if texts is not None and images is not None:
             if len(texts) != len(images):
                 raise ValueError("Number of texts and images must match")
-        
-        # Determine the batch size based on what's provided
         total_items = len(texts) if texts is not None else len(images)
         all_embeddings = []
-        
         for i in range(0, total_items, batch_size):
             batch_texts = texts[i:i + batch_size] if texts is not None else [None] * min(batch_size, total_items - i)
             batch_images = images[i:i + batch_size] if images is not None else [None] * min(batch_size, total_items - i)
-            
             input_texts = []
             processed_images = []
-            
             for j, (text, image) in enumerate(zip(batch_texts, batch_images)):
                 input_str = ""
                 processed_image = None
-                
                 if image is not None:
-                    # Handle both single images and lists of images
                     if not isinstance(image, self._Image.Image):
                         image = self._fetch_image(image)
-                    processed_image = [image]  # Always wrap in list for processor
+                    processed_image = [image]
                     input_str += "<|vision_start|><|image_pad|><|vision_end|>" * len(processed_image)
-                
-                if text is not None:
-                    input_str += text
-                
-                msg = f"<|im_start|>system\n{self.default_instruction}<|im_end|>\n<|im_start|>user\n{input_str}<|im_end|>\n<|im_start|>assistant\n<|endoftext|>"
+                if is_query and instruction and text is not None:
+                    # Official logic: just concatenate instruction and text, with image tokens in front if present
+                    msg = f"{instruction} {input_str}{text}"
+                else:
+                    if text is not None:
+                        input_str += text
+                    msg = f"<|im_start|>system\n{instruction}<|im_end|>\n<|im_start|>user\n{input_str}<|im_end|>\n<|im_start|>assistant\n<|endoftext|>"
                 input_texts.append(msg)
                 processed_images.append(processed_image)
-            
-            # Only pass images to processor if we have them - flatten the list
             images_to_process = None
             if any(img is not None for img in processed_images):
                 images_to_process = []
                 for img_list in processed_images:
                     if img_list is not None:
                         images_to_process.extend(img_list)
-                    else:
-                        # For text-only inputs, we need to maintain alignment
-                        pass
-                
-                # If we have mixed inputs (some with images, some without), we need different handling
                 if len(images_to_process) == 0:
                     images_to_process = None
-            
             inputs = self.processor(
                 text=input_texts,
                 images=images_to_process,
@@ -381,10 +368,8 @@ class OpsMMEmbeddingWrapper(Wrapper):
                 return_tensors="pt"
             )
             inputs = {k: v.to(self.device) for k, v in inputs.items()}
-            
             batch_embeddings = self._encode_input(inputs)
             all_embeddings.append(batch_embeddings.cpu().float().numpy())
-        
         return np.vstack(all_embeddings)
 
     def encode(self, sentences: list[str], **kwargs) -> np.ndarray:
@@ -483,7 +468,7 @@ ops_mm_embedding_v1_7b = ModelMeta(
     public_training_data=None,
     framework=["PyTorch"],
     reference="https://huggingface.co/OpenSearch-AI/Ops-MM-embedding-v1-7B",
-    similarity_fn_name="cosine",
+    similarity_fn_name=None,
     use_instructions=True,
     training_datasets={
         "MMEB-train": ["train"],

@@ -36,10 +36,11 @@ class JinaCLIPModelWrapper:
         task_name: str | None = None,
         prompt_type: PromptType | None = None,
         batch_size: int = 32,
-        convert_to_numpy=False,
-        convert_to_tensor=True,
         **kwargs: Any,
     ):
+        convert_to_numpy = kwargs.pop('convert_to_numpy', False)
+        convert_to_tensor = kwargs.pop('convert_to_tensor', True)
+
         all_text_embeddings = []
 
         with torch.no_grad():
@@ -62,11 +63,12 @@ class JinaCLIPModelWrapper:
         task_name: str | None = None,
         prompt_type: PromptType | None = None,
         batch_size: int = 32,
-        convert_to_numpy=False,
-        convert_to_tensor=True,
         **kwargs: Any,
     ):
         import torchvision.transforms.functional as F
+
+        convert_to_numpy = kwargs.pop('convert_to_numpy', False)
+        convert_to_tensor = kwargs.pop('convert_to_tensor', True)
 
         all_image_embeddings = []
 
@@ -84,7 +86,7 @@ class JinaCLIPModelWrapper:
                 for i in tqdm(range(0, len(images), batch_size)):
                     batch_images = images[i : i + batch_size]
                     image_outputs = self.model.encode_image(
-                        batch_images, convert_to_numpy=False, convert_to_tensor=True
+                        batch_images, convert_to_numpy=convert_to_numpy, convert_to_tensor=convert_to_tensor
                     )
                     all_image_embeddings.append(image_outputs.cpu())
 
@@ -115,12 +117,12 @@ class JinaCLIPModelWrapper:
 
         if texts is not None:
             text_embeddings = self.get_text_embeddings(
-                texts, convert_to_numpy=False, convert_to_tensor=True, **kwargs
+                texts, **kwargs
             )
 
         if images is not None:
             image_embeddings = self.get_image_embeddings(
-                images, convert_to_numpy=False, convert_to_tensor=True, **kwargs
+                images, **kwargs
             )
 
         if text_embeddings is not None and image_embeddings is not None:
@@ -159,6 +161,41 @@ jina_clip_v1 = ModelMeta(
     name="jinaai/jina-clip-v1",
     languages=["eng-Latn"],
     revision="06150c7c382d7a4faedc7d5a0d8cdb59308968f4",
+    release_date="2024-05-30",
+    modalities=["image", "text"],
+    n_parameters=223_000_000,
+    memory_usage_mb=849,
+    max_tokens=8192,
+    embed_dim=768,
+    license="apache-2.0",
+    open_weights=True,
+    public_training_code=None,
+    public_training_data=None,
+    framework=["PyTorch"],
+    reference="https://huggingface.co/jinaai/jina-clip-v1",
+    similarity_fn_name=None,
+    use_instructions=True,
+    training_datasets={
+        # LAION400M
+        # ShareGPT4V
+        "MSMARCO": ["train"],
+        # NQ
+        # HotpotQA
+        # Natural Language Inference (NLI) dataset (Bowman et al., 2015)
+    },
+)
+
+
+
+
+jina_clip_v2 = ModelMeta(
+    loader=partial(
+        JinaCLIPModelWrapper,
+        model_name="jinaai/jina-clip-v2",
+    ),
+    name="jinaai/jina-clip-v2",
+    languages=["eng-Latn"],
+    revision="344d954da76eb8ad47a7aaff42d012e30c15b8fe",
     release_date="2024-05-30",
     modalities=["image", "text"],
     n_parameters=223_000_000,

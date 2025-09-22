@@ -112,8 +112,9 @@ class DenseRetrievalExactSearch:
                 
         logger.info("Encoding Queries.")
         query_ids = list(queries.keys())
+        query_texts = [q["text"] if isinstance(q, dict) else q for q in queries.values()]
         self.results = {qid: {} for qid in query_ids}
-        queries = [queries[qid] for qid in queries]  # type: ignore
+        queries = query_texts  # Use the extracted texts
         
         # queries 是list of str
         

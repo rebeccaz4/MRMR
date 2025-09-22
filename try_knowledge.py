@@ -1,5 +1,5 @@
-import os
-os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+# import os
+# os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
 import mteb
 
@@ -12,28 +12,65 @@ category_map = {
     "Biology": "Science", "Chemistry": "Science", "Geography": "Science", "Agriculture": "Science",
     }
 
-tasks = mteb.get_tasks(tasks=["KnowledgeAny2AnyRetrieval"])
-model_name = "TIGER-Lab/VLM2Vec-Full"
-# model_name = "Alibaba-NLP/gme-Qwen2-VL-7B-Instruct"
+"""
+import torch, os
+print("CUDA_VISIBLE_DEVICES =", os.environ.get("CUDA_VISIBLE_DEVICES"))
+print("GPU count:", torch.cuda.device_count())
+for i in range(torch.cuda.device_count()):
+    print(i, torch.cuda.get_device_name(i))
+"""
 
-model = mteb.get_model(model_name=model_name)
+def main():
+    # tasks = mteb.get_tasks(tasks=["KnowledgeAny2AnyRetrieval"])
+    tasks = mteb.get_tasks(tasks=["KnowledgeRetrieval"])
 
-encode_kwargs = {
-    "batch_size": 1,
-    "show_progress_bar": True,
-    "convert_to_tensor": True,
-}
+    # mutimodal model
+    # model_name = "TIGER-Lab/VLM2Vec-Full"
+    # model_name = "Alibaba-NLP/gme-Qwen2-VL-7B-Instruct"
+    # model_name = "royokong/e5-v"
+    # model_name = "BAAI/bge-visualized-m3"
+    # model_name = "vidore/colpali-v1.3"
+    # model_name = "nvidia/MM-Embed"
 
+    # text model
+    # model_name = "Qwen/Qwen3-Embedding-8B"
+    model_name = "nvidia/NV-Embed-v2"
+    # model_name = "BAAI/bge-m3"  # bge 的 prompt 要在 beg_models.py 里改
 
-evaluation = mteb.MTEB(tasks=tasks)
-results = evaluation.run(
-    model, 
-    encode_kwargs=encode_kwargs, 
-    split_corpus=False, 
-    split_results=True, 
-    category_map=category_map, 
-    text_vision=False,
-    overwrite_results=True, 
-    ave_predictions=True,
-    output_folder="/home/siyue/Projects/exp_results"
+    # model_name = "OpenSearch-AI/Ops-MM-embedding-v1-7B"
+
+    # CLIP model
+    # model_name = "QuanSun/EVA02-CLIP-L-14"
+    # model_name = "microsoft/LLM2CLIP-Openai-L-14-224"
+    # model_name = "google/siglip-base-patch16-384"
+    # model_name = "laion/CLIP-ViT-g-14-laion2B-s34B-b88K"
+
+    model = mteb.get_model(model_name=model_name)
+
+    encode_kwargs = {
+        "batch_size": 1,  # Smallest possible batch size
+        "show_progress_bar": True,
+        "convert_to_tensor": True,
+    }
+
+    evaluation = mteb.MTEB(tasks=tasks, device="cuda:1")
+    # results = evaluation.run(model, encode_kwargs=encode_kwargs, split_corpus=True, split_results=False, overwrite_results=True, save_predictions=True)
+    results = evaluation.run(
+        model,
+        encode_kwargs=encode_kwargs,
+        split_corpus=False,
+        split_results=True,
+        text_vision=False,
+        is_clip=False,
+        overwrite_results=True,
+        save_predictions=True,
+        category_map=category_map,
+        output_folder="/home/siyue/Projects/results_knowledge",
     )
+    
+
+
+if __name__ == "__main__":
+    import multiprocessing
+    multiprocessing.freeze_support()  # Windows / spawn 模式多进程必须加
+    main()

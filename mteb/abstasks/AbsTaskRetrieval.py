@@ -447,7 +447,9 @@ class AbsTaskRetrieval(AbsTask):
             with open(errors_save_path, "w") as f:
                 json.dump(errors, f)
             print(f"Successfully saved errors file: {errors_save_path.name}")
-
+        
+        scores["split_metrics"] = split_metrics if 'split_metrics' in locals() else {}
+        
         return scores
 
     def _add_main_score(self, scores: ScoresDict) -> None:
