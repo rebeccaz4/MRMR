@@ -1,5 +1,5 @@
 import os
-os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
 import mteb
 
@@ -21,19 +21,20 @@ for i in range(torch.cuda.device_count()):
 """
 
 def main():
-    # tasks = mteb.get_tasks(tasks=["KnowledgeAny2AnyRetrieval"])
-    tasks = mteb.get_tasks(tasks=["KnowledgeRetrieval"])
+    tasks = mteb.get_tasks(tasks=["KnowledgeAny2AnyRetrieval"])
+    # tasks = mteb.get_tasks(tasks=["KnowledgeRetrieval"])
 
     # mutimodal model
-    # model_name = "TIGER-Lab/VLM2Vec-Full"
+    model_name = "TIGER-Lab/VLM2Vec-Full"
     # model_name = "Alibaba-NLP/gme-Qwen2-VL-7B-Instruct"
     # model_name = "royokong/e5-v"
     # model_name = "BAAI/bge-visualized-m3"
     # model_name = "vidore/colpali-v1.3"
     # model_name = "nvidia/MM-Embed"
+    # model_name = "OpenSearch-AI/Ops-MM-embedding-v1-7B"
 
     # text model
-    model_name = "Qwen/Qwen3-Embedding-8B"
+    # model_name = "Qwen/Qwen3-Embedding-8B"
     # model_name = "nvidia/NV-Embed-v2"
     # model_name = "BAAI/bge-m3"  # bge 的 prompt 要在 beg_models.py 里改
 
@@ -54,8 +55,8 @@ def main():
     }
 
     evaluation = mteb.MTEB(tasks=tasks)
-    results = evaluation.run(model, encode_kwargs=encode_kwargs, split_corpus=False, split_results=True, category_map=category_map, overwrite_results=True, save_predictions=True, output_folder="/home/siyue/Projects/results_knowledge_qwen3")
-    """
+    # results = evaluation.run(model, encode_kwargs=encode_kwargs, split_corpus=False, split_results=True, category_map=category_map, overwrite_results=True, save_predictions=True, output_folder="/home/siyue/Projects/results_knowledge_qwen3")
+
     results = evaluation.run(
         model,
         encode_kwargs=encode_kwargs,
@@ -66,9 +67,11 @@ def main():
         overwrite_results=True,
         save_predictions=True,
         category_map=category_map,
-        output_folder="/home/siyue/Projects/results_knowledge_try",
+        text_length="original",
+        # chunk_size=100,
+        output_folder="/home/siyue/Projects/results_knowledge_vlm2vec_redo",
     )
-    """
+
 
 if __name__ == "__main__":
     import multiprocessing

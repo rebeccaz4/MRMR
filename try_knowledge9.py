@@ -37,18 +37,18 @@ def main():
     # model_name = "nvidia/NV-Embed-v2"
     # model_name = "BAAI/bge-m3"  # bge 的 prompt 要在 beg_models.py 里改
 
-    # model_name = "OpenSearch-AI/Ops-MM-embedding-v1-7B"
+    model_name = "OpenSearch-AI/Ops-MM-embedding-v1-7B"
 
     # CLIP model
     # model_name = "QuanSun/EVA02-CLIP-L-14"
     # model_name = "google/siglip-base-patch16-384"
-    model_name = "laion/CLIP-ViT-g-14-laion2B-s34B-b88K"
+    # model_name = "laion/CLIP-ViT-g-14-laion2B-s34B-b88K"
     # model_name = "jinaai/jina-clip-v2"
 
     model = mteb.get_model(model_name=model_name,device="cuda:3")
 
     encode_kwargs = {
-        "batch_size": 1,  # Smallest possible batch size
+        "batch_size": 8,  # Smallest possible batch size
         "show_progress_bar": True,
         "convert_to_tensor": True,
     }
@@ -58,11 +58,12 @@ def main():
                              encode_kwargs=encode_kwargs, 
                              split_corpus=False, 
                              split_results=True, 
-                             is_clip=True,
+                             is_clip=False,
+                             text_vision=True,
                              category_map=category_map, 
                              overwrite_results=True, 
                              save_predictions=True, 
-                             output_folder="/home/siyue/Projects/results_knowledge_openclip")
+                             output_folder="/home/siyue/Projects/results_knowledge_ops_text_vision")
     """
     results = evaluation.run(
         model,

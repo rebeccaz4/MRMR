@@ -106,6 +106,10 @@ def _load_data(
 
 
 class TrafficIT2AnyRetrieval(AbsTaskAny2AnyRetrieval):
+    def __init__(self):
+        self.split_corpus = False
+        self.split_results = False
+        
     metadata = TaskMetadata(
         name="TrafficIT2AnyRetrieval",
         description="Retrieval of textual rule descriptions for design-related images.",

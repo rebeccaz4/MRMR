@@ -30,7 +30,7 @@ def _load_data(
     qrels_all:   Dict[str, Dict[str, Dict[str, int]]]        = {}
     
     captions_map = {}
-    caption_path = "/home/siyue/Projects/mmb_pipeline/AllCaption/all_captions_knowledge.json"
+    caption_path = "/home/siyue/Projects/mmb_pipeline/AllCaption/all_captions_theorem.json"
     with open(caption_path, "r", encoding="utf-8") as f:
         cap_list = json.load(f)
     for item in cap_list:
@@ -99,11 +99,10 @@ def _load_data(
             did = f"corpus-{split}-{row['id']}"
             text = map_corpus(row)
             split_corpus[did] = {"text": text}
-
-
-        for idx, row in enumerate(pin_p_ds):
-            did = f"corpus-{split}-redo-{idx}"
-            text = row["text"]
+        
+        for row in pin_p_ds:
+            did = f"corpus-{split}-{row['id']}"
+            text = map_corpus(row)
             split_corpus[did] = {"text": text}
             
            
@@ -127,17 +126,17 @@ def _load_data(
 
 
 
-class KnowledgeRetrieval(AbsTaskRetrieval):
+class TheoremRetrieval(AbsTaskRetrieval):
     # Helper: get list of query texts for encoding
     # Usage: texts = [q["text"] for q in self.queries[split].values()]
     # This avoids passing dicts to the model.encode method, which expects strings.
 
     metadata = TaskMetadata(
-        name="KnowledgeRetrieval",
+        name="TheoremRetrieval",
         description="The dataset consists 200 images and 800 discriptions.",
-        reference="https://huggingface.co/datasets/MMB-25/knowledge",
+        reference="https://huggingface.co/datasets/MMB-25/theorem",
         dataset={
-            "path": "MMB-25/knowledge",
+            "path": "MMB-25/theorem",
             "revision": "main",
         },
         type="Retrieval",
@@ -166,7 +165,7 @@ class KnowledgeRetrieval(AbsTaskRetrieval):
 }
 """,
         prompt={
-            "query": "Retrieve relevant documents that help answer the question."
+            "query": "Retrieve relevant theorems that are involved in solving the problem."
         },
     )
     

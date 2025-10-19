@@ -9,7 +9,8 @@ from mteb.models.e5_instruct import E5_MISTRAL_TRAINING_DATA
 # model_prompts = {"query": "Represent this sentence for searching relevant passages: "}
 # model_prompts = {"query": "Given an image caption, retrieve descriptions that have contradictory information with the image caption."}
 # model_prompts = {"query": "Given a traffic case description, retrieve the driving rule documents that it violates."}
-model_prompts = {"query": "Given a vehicle design description, retrieve the design requirements that it violates."}
+# model_prompts = {"query": "Given a vehicle design description, retrieve the design requirements that it violates."}
+model_prompts = {"query": "Retrieve relevant theorems that are involved in solving the problem."}
 model_prompts_zh = {"query": "为这个句子生成表示以用于检索相关文章："}
 
 bge_m3_training_data = {

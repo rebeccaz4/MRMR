@@ -102,6 +102,10 @@ def _load_data(
 
 
 class NegationI2TRetrieval(AbsTaskAny2AnyRetrieval):
+    def __init__(self):
+        self.split_corpus = True
+        self.split_results = False
+        
     metadata = TaskMetadata(
         name="NegationI2TRetrieval",
         description="Retrieval of textual rule descriptions for design-related images.",

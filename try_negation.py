@@ -1,5 +1,5 @@
-import os
-os.environ["CUDA_VISIBLE_DEVICES"] = "0,1"  # 在跑nv-embed-v2的时候不能限制环境
+# import os
+# os.environ["CUDA_VISIBLE_DEVICES"] = "0,1"  # 在跑nv-embed-v2的时候不能限制环境
 
 import mteb
 from datasets import load_dataset
@@ -29,16 +29,16 @@ def main():
     # model_name = "nvidia/NV-Embed-v2"
     # model_name = "BAAI/bge-m3"  # bge 的 prompt 要在 beg_models.py 里改
 
-    # model_name = "OpenSearch-AI/Ops-MM-embedding-v1-7B"
+    model_name = "OpenSearch-AI/Ops-MM-embedding-v1-7B"
 
     # CLIP model
     # model_name = "QuanSun/EVA02-CLIP-L-14"
     # model_name = "microsoft/LLM2CLIP-Openai-L-14-224"
     # model_name = "google/siglip-large-patch16-256"
     # model_name = "laion/CLIP-ViT-g-14-laion2B-s34B-b88K"
-    model_name = "jinaai/jina-clip-v2"
+    # model_name = "jinaai/jina-clip-v2"
 
-    model = mteb.get_model(model_name=model_name, device="cuda:0")
+    model = mteb.get_model(model_name=model_name, device="cuda:3")
 
     encode_kwargs = {
         "batch_size": 1,  # Smallest possible batch size
@@ -53,11 +53,11 @@ def main():
         encode_kwargs=encode_kwargs,
         split_corpus=True,
         split_results=False,
-        text_vision=False,
-        is_clip=True,
+        text_vision=True,
+        is_clip=False,
         overwrite_results=True,
         save_predictions=True,
-        output_folder="/home/siyue/Projects/results_negation",
+        output_folder="/home/siyue/Projects/results_negation_ops_textvision",
     )
     
 

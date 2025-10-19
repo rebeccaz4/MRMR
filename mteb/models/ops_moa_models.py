@@ -187,9 +187,21 @@ class OpsMMEmbeddingWrapper(Wrapper):
                     image_obj = self._Image.open(self._BytesIO(data))
             else:
                 image_obj = self._Image.open(image)
+        elif isinstance(image, self._torch.Tensor):
+            # Convert tensor to PIL Image
+            # Assume CHW format, convert to HWC
+            if image.dim() == 3 and image.shape[0] in [1, 3, 4]:
+                image_np = image.permute(1, 2, 0).cpu().numpy()
+                if image.shape[0] == 1:  # grayscale
+                    image_np = image_np.squeeze(2)
+                    image_obj = self._Image.fromarray(image_np, mode='L')
+                else:
+                    image_obj = self._Image.fromarray(image_np)
+            else:
+                raise ValueError(f"Unsupported tensor shape for image: {image.shape}")
         
         if image_obj is None:
-            raise ValueError(f"Unrecognized image input, support local path, http url, base64 and PIL.Image, got {image}")
+            raise ValueError(f"Unrecognized image input, support local path, http url, base64, PIL.Image, and torch.Tensor, got {type(image)}")
             
         image = image_obj.convert("RGB")
         width, height = image.size
@@ -229,12 +241,7 @@ class OpsMMEmbeddingWrapper(Wrapper):
             batch_texts = texts[i:i + batch_size]
             input_texts = []
             for text in batch_texts:
-                if is_query and instruction:
-                    # Official logic: just concatenate instruction and text
-                    msg = f"{instruction}\n{text}"
-                else:
-                    # Default: chat template
-                    msg = f"<|im_start|>system\n{instruction}<|im_end|>\n<|im_start|>user\n{text}<|im_end|>\n<|im_start|>assistant\n<|endoftext|>"
+                msg = f"<|im_start|>system\n{instruction}<|im_end|>\n<|im_start|>user\n{text}<|im_end|>\n<|im_start|>assistant\n<|endoftext|>"
                 input_texts.append(msg)
             inputs = self.processor(
                 text=input_texts,
@@ -246,7 +253,10 @@ class OpsMMEmbeddingWrapper(Wrapper):
             inputs = {k: v.to(self.device) for k, v in inputs.items()}
             batch_embeddings = self._encode_input(inputs)
             all_embeddings.append(batch_embeddings.cpu().float().numpy())
-        return np.vstack(all_embeddings)
+        embeddings = np.vstack(all_embeddings)
+        if "convert_to_tensor" in kwargs and kwargs["convert_to_tensor"]:
+            return self._torch.from_numpy(embeddings)
+        return embeddings
 
     def get_image_embeddings(
         self,
@@ -261,7 +271,6 @@ class OpsMMEmbeddingWrapper(Wrapper):
         """Get embeddings for image inputs."""
         if instruction is None:
             instruction = Wrapper.get_instruction(task_name=task_name, prompt_type=prompt_type)
-        is_query = prompt_type == PromptType.query
         if isinstance(images, DataLoader):
             # Convert DataLoader to list of images
             image_list = []
@@ -296,7 +305,10 @@ class OpsMMEmbeddingWrapper(Wrapper):
             inputs = {k: v.to(self.device) for k, v in inputs.items()}
             batch_embeddings = self._encode_input(inputs)
             all_embeddings.append(batch_embeddings.cpu().float().numpy())
-        return np.vstack(all_embeddings)
+        embeddings = np.vstack(all_embeddings)
+        if "convert_to_tensor" in kwargs and kwargs["convert_to_tensor"]:
+            return self._torch.from_numpy(embeddings)
+        return embeddings
 
     def get_fused_embeddings(
         self,
@@ -342,12 +354,9 @@ class OpsMMEmbeddingWrapper(Wrapper):
                         image = self._fetch_image(image)
                     processed_image = [image]
                     input_str += "<|vision_start|><|image_pad|><|vision_end|>" * len(processed_image)
-                if is_query and instruction and text is not None:
-                    # Official logic: just concatenate instruction and text, with image tokens in front if present
-                    msg = f"{instruction} {input_str}{text}"
-                else:
-                    if text is not None:
-                        input_str += text
+
+                if text is not None:
+                    input_str += text
                     msg = f"<|im_start|>system\n{instruction}<|im_end|>\n<|im_start|>user\n{input_str}<|im_end|>\n<|im_start|>assistant\n<|endoftext|>"
                 input_texts.append(msg)
                 processed_images.append(processed_image)
@@ -370,7 +379,10 @@ class OpsMMEmbeddingWrapper(Wrapper):
             inputs = {k: v.to(self.device) for k, v in inputs.items()}
             batch_embeddings = self._encode_input(inputs)
             all_embeddings.append(batch_embeddings.cpu().float().numpy())
-        return np.vstack(all_embeddings)
+        embeddings = np.vstack(all_embeddings)
+        if "convert_to_tensor" in kwargs and kwargs["convert_to_tensor"]:
+            return self._torch.from_numpy(embeddings)
+        return embeddings
 
     def encode(self, sentences: list[str], **kwargs) -> np.ndarray:
         """Encode sentences using text embeddings."""

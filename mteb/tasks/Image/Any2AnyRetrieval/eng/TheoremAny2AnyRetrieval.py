@@ -130,8 +130,8 @@ def _load_data(
         return None
 
     # build expansion maps if requested or if path provided
-    text2b_path = "/home/siyue/Projects/mmb_pipeline/Expansion/results/knowledge/qwen2-vl-2b_expansion_results.json"
-    text72b_path = "/home/siyue/Projects/mmb_pipeline/Expansion/results/knowledge/qwen2.5-vl-72b_expansion_results.json"
+    text2b_path = "/home/siyue/Projects/mmb_pipeline/Expansion/results/theorem/qwen2-vl-2b_expansion_results.json"
+    text72b_path = "/home/siyue/Projects/mmb_pipeline/Expansion/results/theorem/qwen2.5-vl-72b_expansion_results.json"
     exp_map_2b = {}
     exp_map_72b = {}
     
@@ -146,7 +146,7 @@ def _load_data(
     # ----------------- captions map (unchanged) -----------------
     captions_map = {}
     if text_vision:
-        caption_path = "/home/siyue/Projects/mmb_pipeline/AllCaption/all_captions_knowledge.json"
+        caption_path = "/home/siyue/Projects/mmb_pipeline/AllCaption/all_captions_theorem.json"
         try:
             with open(caption_path, "r", encoding="utf-8") as f:
                 cap_list = json.load(f)
@@ -228,22 +228,10 @@ def _load_data(
             }
 
         corpus_ds_mapped = corpus_ds.map(map_corpus)
-        # pin_p_ds_mapped = pin_p_ds.map(map_corpus)
-
-        def map_pin_p(x, idx):
-            image_to_use = x["vision"] if text_vision else x["image"]
-            resized_image = resize_image(image_to_use)
-            
-            return {
-                "id": f"redo-{split}-{idx}",
-                "text": None if text_vision else x["text"],
-                "image": resized_image,
-                "modality": "image" if text_vision else x["modality"],
-            }
-
-        pin_p_ds_mapped = pin_p_ds.map(map_pin_p, with_indices=True)
+        pin_p_ds_mapped = pin_p_ds.map(map_corpus)
 
         combined_ds = concatenate_datasets([corpus_ds_mapped, pin_p_ds_mapped])
+        # combined_ds = concatenate_datasets([corpus_ds_mapped, ])
         corpus[split] = combined_ds
 
         # ---- qrels ----
@@ -255,6 +243,22 @@ def _load_data(
             did = f"corpus-{split}-{row['corpus_id']}"
             qrels[split].setdefault(qid, {})[did] = int(row["score"])
 
+    all_query_texts = {}
+    for split, ds in query.items():
+        # ds 可能是 HuggingFace Dataset，需要转换成 list[dict]
+        all_query_texts[split] = []
+        for row in ds:
+            all_query_texts[split].append({
+                "id": row["id"],
+                "text": row["text"]
+            })
+
+    save_path = os.path.join(os.getcwd(), "all_query_text.json")
+    with open(save_path, "w", encoding="utf-8") as f:
+        json.dump(all_query_texts, f, ensure_ascii=False, indent=2)
+
+    print(f"[INFO] Saved all query texts to {save_path}")
+
     return corpus, query, qrels
 
 
@@ -264,17 +268,17 @@ def _load_data(
 
 
 
-class KnowledgeAny2AnyRetrieval(AbsTaskAny2AnyRetrieval):
+class TheoremAny2AnyRetrieval(AbsTaskAny2AnyRetrieval):
     def __init__(self):
         self.split_corpus = False
         self.split_results = True
         
     metadata = TaskMetadata(
-        name="KnowledgeAny2AnyRetrieval",
-        description="Retrieval of knowledge to solve questions.",
-        reference="https://huggingface.co/datasets/MMB-25/knowledge",
+        name="TheoremAny2AnyRetrieval",
+        description="Retrieval of theorem to solve questions.",
+        reference="https://huggingface.co/datasets/MMB-25/theorem",
         dataset={
-            "path": "MMB-25/knowledge",
+            "path": "MMB-25/theorem",
             "revision": "main",  
         },
         type="Any2AnyRetrieval",
@@ -294,7 +298,7 @@ class KnowledgeAny2AnyRetrieval(AbsTaskAny2AnyRetrieval):
   howpublished={\url{https://huggingface.co/datasets/MMB-25/design}},
 }
 """,   
-        prompt={"query": "Retrieve relevant documents that help answer the question."},
+        prompt={"query": "Retrieve relevant theorems that are involved in solving the problem."},
         descriptive_stats={
             "n_samples": {"test":28},  # 请填入真实样本数
             "avg_character_length": {

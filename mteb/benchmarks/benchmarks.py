@@ -2029,3 +2029,56 @@ R2MED = Benchmark(
 }
 """,
 )
+
+
+MRMR_multimodal = Benchmark(
+    name="MRMR_multimodal",
+    display_name="Multimodal retrieval tasks",
+    tasks=get_tasks(
+        tasks=[
+            "DesignIT2AnyRetrieval",
+            "NegationI2TRetrieval",
+            "TrafficIT2AnyRetrieval",
+            "TheoremAny2AnyRetrieval",
+            "KnowledgeAny2AnyRetrieval",    
+        ]
+    ),
+    description="""MRMR: A Benchmark for Multimodal Retrieval in Real-world Scenarios.
+    MRMR is a comprehensive benchmark designed to evaluate multimodal retrieval models across various real-world scenarios
+    """,
+    reference="https://github.com/siyue-zhang/mm-mteb/tree/master",
+    citation=r"""
+@article{li2025r2med,
+  author = {Li, Lei and Zhou, Xiao and Liu, Zheng},
+  journal = {arXiv preprint arXiv:2505.14558},
+  title = {R2MED: A Benchmark for Reasoning-Driven Medical Retrieval},
+  year = {2025},
+}
+""",
+)
+
+MRMR_text = Benchmark(
+    name="MRMR_text",
+    display_name="Multimodal retrieval tasks",
+    tasks=get_tasks(
+        tasks=[
+            "KnowledgeRetrieval",
+            "TheoremRetrieval",
+            "NegationRetrieval",
+            "DesignRetrieval",
+            "TrafficRetrieval",   
+        ]
+    ),
+    description="""MRMR: A Benchmark for Multimodal Retrieval in Real-world Scenarios.
+    MRMR is a comprehensive benchmark designed to evaluate multimodal retrieval models across various real-world scenarios
+    """,
+    reference="https://github.com/siyue-zhang/mm-mteb/tree/master",
+    citation=r"""
+@article{li2025r2med,
+  author = {Li, Lei and Zhou, Xiao and Liu, Zheng},
+  journal = {arXiv preprint arXiv:2505.14558},
+  title = {R2MED: A Benchmark for Reasoning-Driven Medical Retrieval},
+  year = {2025},
+}
+""",
+)
