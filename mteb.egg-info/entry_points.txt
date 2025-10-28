@@ -1,0 +1,2 @@
+[console_scripts]
+mteb = mteb.cli:main
