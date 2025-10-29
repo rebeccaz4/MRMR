@@ -2,7 +2,7 @@
 
 **A REALISTIC AND EXPERT-LEVEL MULTIDISCIPLINARY BENCHMARK FOR REASONING-INTENSIVE MULTIMODAL RETRIEVAL.**
 
-![Hugging Face](https://huggingface.co/MMB-25)
+[⭐ Hugging Face](https://huggingface.co/MMB-25)
 
 
 ## 📘 Introduction
