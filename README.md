@@ -2,7 +2,7 @@
 
 **A REALISTIC AND EXPERT-LEVEL MULTIDISCIPLINARY BENCHMARK FOR REASONING-INTENSIVE MULTIMODAL RETRIEVAL.**
 
-![Hugging Face](https://huggingface.co/MMB-25)
+[⭐ Hugging Face](https://huggingface.co/MMB-25)
 
 
 ## 📘 Introduction
@@ -21,9 +21,7 @@ pip install -e .
 ```
 
 ## 💡 Example Usage
-
-Below we present a simple use-case example. For more information, see the [documentation](https://embeddings-benchmark.github.io/mteb/).
-
+Below we present a simple use-case example to show how to run a benchmark. 
 ```python
 import mteb
 
@@ -48,3 +46,33 @@ results = evaluation.run(
         text_vision=False,
         is_clip=False,
     )
+```
+Below we present a simple use-case example to show how to run a task.
+```python
+import mteb
+
+tasks = mteb.get_tasks(tasks=["KnowledgeAny2AnyRetrieval"])
+
+model_name = "OpenSearch-AI/Ops-MM-embedding-v1-7B"
+
+model = mteb.get_model(model_name=model_name)
+
+encode_kwargs = {
+    "batch_size": 1,  # Smallest possible batch size
+    "show_progress_bar": True,
+    "convert_to_tensor": True,
+}
+
+evaluation = mteb.MTEB(tasks=tasks)
+
+results = evaluation.run(
+    model,
+    encode_kwargs=encode_kwargs,
+    text_vision=True,
+    overwrite_results=True,
+    save_predictions=True,
+    text_length="original",
+    output_folder="/home/siyue/Projects/results_knowledge_ops_textvision",
+    )    
+```
+For more information, see the [documentation](https://embeddings-benchmark.github.io/mteb/).

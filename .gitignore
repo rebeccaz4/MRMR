@@ -155,3 +155,6 @@ mteb/leaderboard/__cached_results.json
 
 visualized_base_en_V1.5.pth
 visualized_m3.pth
+
+all_query_text.json
+debug/
