@@ -101,22 +101,19 @@ def _load_data(
             qrels[split][qid][did] = int(row["score"])
             for i in range(2, 5):
                 qrels[split][qid][f"corpus-{split}-{row['query-id']}_{i}"] = 0
-    print("type(query)", type(query))
-    print("type(corpus)", type(corpus))
     return corpus, query, qrels
 
 
 class NegationI2TMultiChoice(AbsTaskAny2AnyMultiChoice):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.split_corpus = False
         self.split_results = False
         self.category_map = None
 
     metadata = TaskMetadata(
         name="NegationI2TMultiChoice",
         description="NegationI2TMultchoice",
-        reference="https://arxiv.org/pdf/2406.16860",
+        reference="https://arxiv.org/pdf/2510.09510",
         dataset={
             "path": "MMB-25/negation",
             "revision": "main",
@@ -135,11 +132,14 @@ class NegationI2TMultiChoice(AbsTaskAny2AnyMultiChoice):
         modalities=["image", "text"],
         sample_creation="found",
         bibtex_citation=r"""
-@article{tong2024cambrian,
-  author = {Tong, Shengbang and Brown, Ellis and Wu, Penghao and Woo, Sanghyun and Middepogu, Manoj and Akula, Sai Charitha and Yang, Jihan and Yang, Shusheng and Iyer, Adithya and Pan, Xichen and others},
-  journal = {arXiv preprint arXiv:2406.16860},
-  title = {Cambrian-1: A fully open, vision-centric exploration of multimodal llms},
-  year = {2024},
+@misc{zhang2025mrmrrealisticexpertlevelmultidisciplinary,
+      title={MRMR: A Realistic and Expert-Level Multidisciplinary Benchmark for Reasoning-Intensive Multimodal Retrieval}, 
+      author={Siyue Zhang and Yuan Gao and Xiao Zhou and Yilun Zhao and Tingyu Song and Arman Cohan and Anh Tuan Luu and Chen Zhao},
+      year={2025},
+      eprint={2510.09510},
+      archivePrefix={arXiv},
+      primaryClass={cs.IR},
+      url={https://arxiv.org/abs/2510.09510}, 
 }
 """,
         prompt={"query": "Given an image caption, retrieve descriptions that have contradictory information with the image."},

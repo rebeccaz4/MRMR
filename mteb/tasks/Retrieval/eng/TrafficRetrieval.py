@@ -141,15 +141,14 @@ class TrafficRetrieval(AbsTaskRetrieval):
         dialect=[],
         sample_creation="found",
         bibtex_citation=r"""
-@article{BenAbacha-BMC-2019,
-  author = {Asma, Ben Abacha and Dina, Demner{-}Fushman},
-  journal = {{BMC} Bioinform.},
-  number = {1},
-  pages = {511:1--511:23},
-  title = {A Question-Entailment Approach to Question Answering},
-  url = {https://bmcbioinformatics.biomedcentral.com/articles/10.1186/s12859-019-3119-4},
-  volume = {20},
-  year = {2019},
+@misc{zhang2025mrmrrealisticexpertlevelmultidisciplinary,
+      title={MRMR: A Realistic and Expert-Level Multidisciplinary Benchmark for Reasoning-Intensive Multimodal Retrieval}, 
+      author={Siyue Zhang and Yuan Gao and Xiao Zhou and Yilun Zhao and Tingyu Song and Arman Cohan and Anh Tuan Luu and Chen Zhao},
+      year={2025},
+      eprint={2510.09510},
+      archivePrefix={arXiv},
+      primaryClass={cs.IR},
+      url={https://arxiv.org/abs/2510.09510}, 
 }
 """,
         prompt={

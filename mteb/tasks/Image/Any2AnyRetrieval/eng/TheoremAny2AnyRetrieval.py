@@ -275,11 +275,6 @@ class TheoremAny2AnyRetrieval(AbsTaskAny2AnyRetrieval):
         super().__init__(**kwargs)
         self.split_results = True
         self.category_map = category_map
-
-        kwargs["split_corpus"] = self.split_corpus
-        kwargs["split_results"] = self.split_results
-        kwargs["category_map"] = self.category_map
-        self.kwargs = kwargs
         
     metadata = TaskMetadata(
         name="TheoremAny2AnyRetrieval",
@@ -299,11 +294,14 @@ class TheoremAny2AnyRetrieval(AbsTaskAny2AnyRetrieval):
         modalities=["image", "text"],
         sample_creation="created",
         bibtex_citation=r"""
-@misc{design_dataset2024,
-  title={MMB-25: Design Rule Violation Retrieval Dataset},
-  author={Your Name or Org},
-  year={2024},
-  howpublished={\url{https://huggingface.co/datasets/MMB-25/design}},
+@misc{zhang2025mrmrrealisticexpertlevelmultidisciplinary,
+      title={MRMR: A Realistic and Expert-Level Multidisciplinary Benchmark for Reasoning-Intensive Multimodal Retrieval}, 
+      author={Siyue Zhang and Yuan Gao and Xiao Zhou and Yilun Zhao and Tingyu Song and Arman Cohan and Anh Tuan Luu and Chen Zhao},
+      year={2025},
+      eprint={2510.09510},
+      archivePrefix={arXiv},
+      primaryClass={cs.IR},
+      url={https://arxiv.org/abs/2510.09510}, 
 }
 """,   
         prompt={"query": "Retrieve relevant theorems that are involved in solving the problem."},

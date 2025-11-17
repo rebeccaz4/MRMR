@@ -13,7 +13,7 @@ for i in range(torch.cuda.device_count()):
 """
 
 def main():
-    tasks = mteb.get_tasks(tasks=["DesignRetrieval"])
+    tasks = mteb.get_tasks(tasks=["NegationI2TMultiChoice"])
     # tasks = mteb.get_tasks(tasks=["NegationRetrieval"])
 
     # mutimodal model
@@ -27,9 +27,9 @@ def main():
     # text model
     # model_name = "Qwen/Qwen3-Embedding-8B"
     # model_name = "nvidia/NV-Embed-v2"
-    model_name = "BAAI/bge-m3"  # bge 的 prompt 要在 beg_models.py 里改
+    # model_name = "BAAI/bge-m3"  # bge 的 prompt 要在 beg_models.py 里改
 
-    # model_name = "OpenSearch-AI/Ops-MM-embedding-v1-7B"
+    model_name = "OpenSearch-AI/Ops-MM-embedding-v1-7B"
 
     # CLIP model
     # model_name = "QuanSun/EVA02-CLIP-L-14"
@@ -55,7 +55,7 @@ def main():
         is_clip=False,
         overwrite_results=True,
         save_predictions=True,
-        output_folder="/home/siyue/Projects/results_design_qwen_try",
+        output_folder="/home/siyue/Projects/results_negation_ops_try",
     )
     
 
