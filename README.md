@@ -2,7 +2,7 @@
 
 **A REALISTIC AND EXPERT-LEVEL MULTIDISCIPLINARY BENCHMARK FOR REASONING-INTENSIVE MULTIMODAL RETRIEVAL.**
 
-[⭐ Hugging Face](https://huggingface.co/MMB-25)
+[⭐ Hugging Face](https://huggingface.co/MRMRbenchmark)
 
 
 ## 📘 Introduction
@@ -16,7 +16,6 @@ Our benchmark extends MTEB by adding 5 new tasks. Additionally, to obtain more d
 You can install mteb simply using pip. For more on installation please see the [documentation](https://embeddings-benchmark.github.io/mteb/installation/).
 
 ```bash
-cd mteb
 pip install -e .
 ```
 

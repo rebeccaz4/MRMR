@@ -113,9 +113,9 @@ class NegationI2TMultiChoice(AbsTaskAny2AnyMultiChoice):
     metadata = TaskMetadata(
         name="NegationI2TMultiChoice",
         description="NegationI2TMultchoice",
-        reference="https://arxiv.org/pdf/2510.09510",
+        reference="https://huggingface.co/datasets/MRMRbenchmark/negation",
         dataset={
-            "path": "MMB-25/negation",
+            "path": "MRMRbenchmark/negation",
             "revision": "main",
         },
         type="Any2AnyMultiChoice",

@@ -213,9 +213,6 @@ def _load_data(
         corpus_ds = load_dataset(path, "corpus", split=split,
                                  cache_dir=cache_dir, revision=revision)
 
-        pin_p_ds = load_dataset(path, "pin_p", split=split,
-                                cache_dir=cache_dir, revision=revision)
-
         def map_corpus(x):
             image_to_use = x["vision"] if text_vision else x["image"]
             resized_image = resize_image(image_to_use)
@@ -228,11 +225,7 @@ def _load_data(
             }
 
         corpus_ds_mapped = corpus_ds.map(map_corpus)
-        pin_p_ds_mapped = pin_p_ds.map(map_corpus)
-
-        combined_ds = concatenate_datasets([corpus_ds_mapped, pin_p_ds_mapped])
-        # combined_ds = concatenate_datasets([corpus_ds_mapped, ])
-        corpus[split] = combined_ds
+        corpus[split] = corpus_ds_mapped
 
         # ---- qrels ----
         qrels_ds = load_dataset(path, "qrels", split=split,
@@ -279,9 +272,9 @@ class TheoremAny2AnyRetrieval(AbsTaskAny2AnyRetrieval):
     metadata = TaskMetadata(
         name="TheoremAny2AnyRetrieval",
         description="Retrieval of theorem to solve questions.",
-        reference="https://huggingface.co/datasets/MMB-25/theorem",
+        reference="https://huggingface.co/datasets/MRMRbenchmark/theorem",
         dataset={
-            "path": "MMB-25/theorem",
+            "path": "MRMRbenchmark/theorem",
             "revision": "main",  
         },
         type="Any2AnyRetrieval",
@@ -320,16 +313,12 @@ class TheoremAny2AnyRetrieval(AbsTaskAny2AnyRetrieval):
     )
 
     def load_data(self, **kwargs):
-        kwargs.update(self.kwargs)
 
         text_vision = kwargs.get("text_vision", False)
         print(text_vision)
         
         is_clip = kwargs.get("is_clip", False)
         print(is_clip)
-
-        split_results = kwargs.get("split_results", False)
-        print(split_results)
         
         text_length = kwargs.get("text_length", "original")
         print(text_length)

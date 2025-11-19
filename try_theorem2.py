@@ -13,7 +13,7 @@ for i in range(torch.cuda.device_count()):
 """
 
 def main():
-    tasks = mteb.get_tasks(tasks=["NegationI2TMultiChoice"])
+    tasks = mteb.get_tasks(tasks=["TheoremAny2AnyRetrieval"])
     # tasks = mteb.get_tasks(tasks=["NegationRetrieval"])
 
     # mutimodal model
@@ -55,7 +55,8 @@ def main():
         is_clip=False,
         overwrite_results=True,
         save_predictions=True,
-        output_folder="/home/siyue/Projects/results_negation_ops_try",
+        text_length="original",
+        output_folder="/home/siyue/Projects/results_theorem_ops_newdata_1",
     )
     
 

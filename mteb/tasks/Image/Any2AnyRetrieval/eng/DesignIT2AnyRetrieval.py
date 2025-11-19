@@ -108,9 +108,9 @@ class DesignIT2AnyRetrieval(AbsTaskAny2AnyRetrieval):
     metadata = TaskMetadata(
         name="DesignIT2AnyRetrieval",
         description="Retrieval of textual rule descriptions for design-related images.",
-        reference="https://huggingface.co/datasets/MMB-25/design",
+        reference="https://huggingface.co/datasets/MRMRbenchmark/design",
         dataset={
-            "path": "MMB-25/design",
+            "path": "MRMRbenchmark/design",
             "revision": "main",  
         },
         type="Any2AnyRetrieval",

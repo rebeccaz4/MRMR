@@ -661,7 +661,6 @@ class Any2AnyRetrievalEvaluator(Evaluator):
         queries: dict[str, dict[str, str | Image.Image]],
         **kwargs,
     ) -> dict[str, dict[str, float]]:
-        print("before embedding split_corpus", self.split_corpus)
         
         if not self.retriever:
             raise ValueError("Model/Technique has not been provided!")

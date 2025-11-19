@@ -1,6 +1,6 @@
 import os
 # Set GPU before importing any CUDA-related modules
-os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
 import torch
 import mteb
@@ -15,10 +15,10 @@ if torch.cuda.is_available():
 else:
     print("CUDA not available!")
 
-benchmark = mteb.get_benchmark("MRMR_text")
+benchmark = mteb.get_benchmark("MRMR_multimodal")
 print(type(benchmark))
 print(benchmark.name)
-model_name = "Qwen/Qwen3-Embedding-8B"
+model_name = "OpenSearch-AI/Ops-MM-embedding-v1-7B"
 
 model = mteb.get_model(model_name=model_name)
 
@@ -43,5 +43,5 @@ results = evaluation.run(
         overwrite_results=True,
         save_predictions=True,
         text_length="original",
-        output_folder="/home/siyue/Projects/results_benchmark_text",
+        output_folder="/home/siyue/Projects/results_benchmark_multimodal_ops",
     )

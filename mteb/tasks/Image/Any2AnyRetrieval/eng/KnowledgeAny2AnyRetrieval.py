@@ -213,9 +213,6 @@ def _load_data(
         corpus_ds = load_dataset(path, "corpus", split=split,
                                  cache_dir=cache_dir, revision=revision)
 
-        pin_p_ds = load_dataset(path, "pin_p", split=split,
-                                cache_dir=cache_dir, revision=revision)
-
         def map_corpus(x):
             image_to_use = x["vision"] if text_vision else x["image"]
             resized_image = resize_image(image_to_use)
@@ -228,23 +225,8 @@ def _load_data(
             }
 
         corpus_ds_mapped = corpus_ds.map(map_corpus)
-        # pin_p_ds_mapped = pin_p_ds.map(map_corpus)
 
-        def map_pin_p(x, idx):
-            image_to_use = x["vision"] if text_vision else x["image"]
-            resized_image = resize_image(image_to_use)
-            
-            return {
-                "id": f"redo-{split}-{idx}",
-                "text": None if text_vision else x["text"],
-                "image": resized_image,
-                "modality": "image" if text_vision else x["modality"],
-            }
-
-        pin_p_ds_mapped = pin_p_ds.map(map_pin_p, with_indices=True)
-
-        combined_ds = concatenate_datasets([corpus_ds_mapped, pin_p_ds_mapped])
-        corpus[split] = combined_ds
+        corpus[split] = corpus_ds_mapped
 
         # ---- qrels ----
         qrels_ds = load_dataset(path, "qrels", split=split,
@@ -275,9 +257,9 @@ class KnowledgeAny2AnyRetrieval(AbsTaskAny2AnyRetrieval):
     metadata = TaskMetadata(
         name="KnowledgeAny2AnyRetrieval",
         description="Retrieval of knowledge to solve questions.",
-        reference="https://huggingface.co/datasets/MMB-25/knowledge",
+        reference="https://huggingface.co/datasets/MRMRbenchmark/knowledge",
         dataset={
-            "path": "MMB-25/knowledge",
+            "path": "MRMRbenchmark/knowledge",
             "revision": "main",  
         },
         type="Any2AnyRetrieval",
@@ -316,8 +298,6 @@ class KnowledgeAny2AnyRetrieval(AbsTaskAny2AnyRetrieval):
     )
 
     def load_data(self, **kwargs):
-        kwargs.update(self.kwargs)
-
         text_vision = kwargs.get("text_vision", False)
         print(text_vision)
         

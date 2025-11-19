@@ -113,9 +113,9 @@ class TrafficIT2AnyRetrieval(AbsTaskAny2AnyRetrieval):
     metadata = TaskMetadata(
         name="TrafficIT2AnyRetrieval",
         description="Retrieval of textual rule descriptions for design-related images.",
-        reference="https://huggingface.co/datasets/MMB-25/traffic",
+        reference="https://huggingface.co/datasets/MRMRbenchmark/traffic",
         dataset={
-            "path": "MMB-25/traffic",
+            "path": "MRMRbenchmark/traffic",
             "revision": "main",  
         },
         type="Any2AnyRetrieval",
