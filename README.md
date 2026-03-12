@@ -30,15 +30,13 @@ model_name = "OpenSearch-AI/Ops-MM-embedding-v1-7B"
 
 model = mteb.get_model(model_name=model_name)
 
-# Use very small batch size and chunking to avoid memory issues
 encode_kwargs = {
-    "batch_size": 1,  # Smallest possible batch size
+    "batch_size": 1,  
     "show_progress_bar": True,
     "convert_to_tensor": True
 }
 
 evaluation = mteb.MTEB(tasks=benchmark)
-# results = evaluation.run(model, output_folder="/home/siyue/Projects/rbenchmark_try")
 results = evaluation.run(
         model,
         encode_kwargs=encode_kwargs,
@@ -57,7 +55,7 @@ model_name = "OpenSearch-AI/Ops-MM-embedding-v1-7B"
 model = mteb.get_model(model_name=model_name)
 
 encode_kwargs = {
-    "batch_size": 1,  # Smallest possible batch size
+    "batch_size": 1,  
     "show_progress_bar": True,
     "convert_to_tensor": True,
 }
@@ -71,7 +69,7 @@ results = evaluation.run(
     overwrite_results=True,
     save_predictions=True,
     text_length="original",
-    output_folder="/home/siyue/Projects/results_knowledge_ops_textvision",
+    output_folder="xxxx",
     )    
 ```
 For more information, see the [documentation](https://embeddings-benchmark.github.io/mteb/).
